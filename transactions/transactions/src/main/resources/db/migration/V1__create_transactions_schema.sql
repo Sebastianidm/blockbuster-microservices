@@ -1,0 +1,19 @@
+-- Tabla principal de arriendos
+CREATE TABLE rentals (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    rental_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    return_date TIMESTAMP NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    total_amount DECIMAL(10, 2) NOT NULL
+);
+
+-- Tabla de detalles
+CREATE TABLE rental_details (
+    id BIGSERIAL PRIMARY KEY,
+    rental_id BIGINT NOT NULL,
+    movie_id BIGINT NOT NULL,
+    quantity INT NOT NULL DEFAULT 1,
+    price_at_moment DECIMAL(10, 2) NOT NULL,
+    CONSTRAINT fk_rental FOREIGN KEY (rental_id) REFERENCES rentals(id)
+);
