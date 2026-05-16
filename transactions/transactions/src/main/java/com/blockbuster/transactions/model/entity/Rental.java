@@ -36,6 +36,9 @@ public class Rental {
     @Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
     private BigDecimal totalAmount;
 
+    @Column(name = "observation")
+    private String observation;
+
     @OneToMany(mappedBy = "rental", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<RentalDetail> details;
 
