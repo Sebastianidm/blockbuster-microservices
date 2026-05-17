@@ -50,12 +50,15 @@ Flyway aplica estas versiones:
 - `V2__insert_initial_data.sql`
 - `V3__add_audit_or_constraints.sql`
 
-Usuario administrador semilla:
+Usuarios semilla recomendados para demo:
 
-- `username`: `admin`
-- `email`: `admin@blockbuster.com`
-- `password`: `Admin123!`
-- `role`: `ROLE_ADMIN`
+| username | email | role | password |
+| --- | --- | --- | --- |
+| `admin` | `admin@blockbuster.com` | `ROLE_ADMIN` | `Admin123!` |
+| `empleado.centro` | `empleado.centro@blockbuster.com` | `ROLE_EMPLOYEE` | `Admin123!` |
+| `laura.cliente` | `laura.cliente@blockbuster.com` | `ROLE_USER` | `Admin123!` |
+| `pedro.rentas` | `pedro.rentas@blockbuster.com` | `ROLE_USER` | `Admin123!` |
+| `sofia.nostalgia` | `sofia.nostalgia@blockbuster.com` | `ROLE_USER` | `Admin123!` |
 
 ## Modelo
 
