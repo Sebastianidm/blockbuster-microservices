@@ -1,0 +1,87 @@
+package com.blockbuster.catalog.service;
+
+import com.blockbuster.catalog.exception.CatalogException;
+import com.blockbuster.catalog.mapper.CategoryMapper;
+import com.blockbuster.catalog.model.dto.CategoryRequestDTO;
+import com.blockbuster.catalog.model.dto.CategoryResponseDTO;
+import com.blockbuster.catalog.model.entity.Category;
+import com.blockbuster.catalog.repository.CategoryRepository;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class CategoryServiceImplTest {
+
+    @Mock
+    private CategoryRepository categoryRepository;
+
+    @Mock
+    private CategoryMapper categoryMapper;
+
+    @InjectMocks
+    private CategoryServiceImpl categoryService;
+
+    @Test
+    void shouldCreateCategorySuccessfully() {
+        CategoryRequestDTO request = new CategoryRequestDTO();
+        request.setName("Drama");
+        request.setDescription("Películas dramáticas");
+
+        Category category = Category.builder()
+                .name("Drama")
+                .description("Películas dramáticas")
+                .build();
+
+        Category savedCategory = Category.builder()
+                .id(1L)
+                .name("Drama")
+                .description("Películas dramáticas")
+                .build();
+
+        CategoryResponseDTO response = CategoryResponseDTO.builder()
+                .id(1L)
+                .name("Drama")
+                .description("Películas dramáticas")
+                .build();
+
+        when(categoryRepository.existsByNameIgnoreCase("Drama")).thenReturn(false);
+        when(categoryMapper.toEntity(request)).thenReturn(category);
+        when(categoryRepository.save(category)).thenReturn(savedCategory);
+        when(categoryMapper.toResponseDTO(savedCategory)).thenReturn(response);
+
+        CategoryResponseDTO result = categoryService.createCategory(request);
+
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getName()).isEqualTo("Drama");
+    }
+
+    @Test
+    void shouldThrowExceptionWhenCategoryNameAlreadyExists() {
+        CategoryRequestDTO request = new CategoryRequestDTO();
+        request.setName("Action");
+
+        when(categoryRepository.existsByNameIgnoreCase("Action")).thenReturn(true);
+
+        assertThatThrownBy(() -> categoryService.createCategory(request))
+                .isInstanceOf(CatalogException.class)
+                .hasMessage("Ya existe una categoría con el nombre: Action");
+    }
+
+    @Test
+    void shouldThrowExceptionWhenCategoryNotFound() {
+        when(categoryRepository.findById(10L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> categoryService.getCategoryById(10L))
+                .isInstanceOf(CatalogException.class)
+                .hasMessage("Categoría no encontrada con ID: 10");
+    }
+}
