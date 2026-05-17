@@ -3,9 +3,11 @@ package com.blockbuster.catalog.controller;
 import com.blockbuster.catalog.exception.CatalogException;
 import com.blockbuster.catalog.exception.GlobalExceptionHandler;
 import com.blockbuster.catalog.model.dto.MovieResponseDTO;
+import com.blockbuster.catalog.security.JwtAuthenticationFilter;
 import com.blockbuster.catalog.service.MovieService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
@@ -26,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(MovieController.class)
+@AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class MovieControllerTest {
 
@@ -34,6 +37,9 @@ class MovieControllerTest {
 
     @MockitoBean
     private MovieService movieService;
+
+    @MockitoBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Test
     void shouldCreateMovieSuccessfully() throws Exception {

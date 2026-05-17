@@ -2,8 +2,11 @@ package com.blockbuster.users.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.argThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
+import com.blockbuster.users.client.NotificationsClient;
 import com.blockbuster.users.model.dto.LoginRequestDTO;
 import com.blockbuster.users.model.dto.LoginResponseDTO;
 import com.blockbuster.users.model.dto.RegisterUserRequestDTO;
@@ -33,11 +37,14 @@ class AuthServiceImplTest {
 	@Mock
 	private JwtUtils jwtUtils;
 
+	@Mock
+	private NotificationsClient notificationsClient;
+
 	@InjectMocks
 	private AuthServiceImpl authService;
 
 	@Test
-	void shouldDelegateRegisterToUserService() {
+	void shouldDelegateRegisterToUserServiceAndSendNotification() {
 		RegisterUserRequestDTO request = RegisterUserRequestDTO.builder()
 			.username("martin")
 			.email("martin@blockbuster.com")
@@ -52,6 +59,31 @@ class AuthServiceImplTest {
 		when(userService.registerUser(request)).thenReturn(response);
 
 		UserResponseDTO result = authService.register(request);
+
+		assertSame(response, result);
+		verify(notificationsClient).sendNotification(argThat(notification ->
+			notification.getUserId().equals(1L)
+				&& notification.getRecipientEmail().equals("martin@blockbuster.com")
+				&& notification.getType().equals("USER_REGISTRATION")));
+	}
+
+	@Test
+	void shouldRegisterUserEvenWhenNotificationFails() {
+		RegisterUserRequestDTO request = RegisterUserRequestDTO.builder()
+			.username("martin")
+			.email("martin@blockbuster.com")
+			.password("Admin123!")
+			.build();
+		UserResponseDTO response = UserResponseDTO.builder()
+			.id(1L)
+			.username("martin")
+			.email("martin@blockbuster.com")
+			.build();
+
+		when(userService.registerUser(request)).thenReturn(response);
+		doThrow(new RuntimeException("notifications down")).when(notificationsClient).sendNotification(org.mockito.ArgumentMatchers.any());
+
+		UserResponseDTO result = assertDoesNotThrow(() -> authService.register(request));
 
 		assertSame(response, result);
 	}

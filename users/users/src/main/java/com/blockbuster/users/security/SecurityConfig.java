@@ -19,6 +19,7 @@ public class SecurityConfig {
 	@Bean
 	public SecurityFilterChain securityFilterChain(
 		HttpSecurity http,
+		InternalApiKeyFilter internalApiKeyFilter,
 		JwtAuthenticationFilter jwtAuthenticationFilter,
 		JwtAuthenticationEntryPoint authenticationEntryPoint,
 		JwtAccessDeniedHandler accessDeniedHandler
@@ -32,9 +33,11 @@ public class SecurityConfig {
 				.authenticationEntryPoint(authenticationEntryPoint)
 				.accessDeniedHandler(accessDeniedHandler))
 			.authorizeHttpRequests(auth -> auth
-				.requestMatchers("/api/v1/auth/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+				.requestMatchers("/api/v1/auth/**", "/api/v1/users/internal/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 				.anyRequest().authenticated())
 			.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+		http.addFilterBefore(internalApiKeyFilter, UsernamePasswordAuthenticationFilter.class);
 
 		return http.build();
 	}

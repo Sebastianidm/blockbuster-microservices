@@ -3,9 +3,11 @@ package com.blockbuster.catalog.controller;
 import com.blockbuster.catalog.exception.CatalogException;
 import com.blockbuster.catalog.exception.GlobalExceptionHandler;
 import com.blockbuster.catalog.model.dto.CategoryResponseDTO;
+import com.blockbuster.catalog.security.JwtAuthenticationFilter;
 import com.blockbuster.catalog.service.CategoryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
@@ -26,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(CategoryController.class)
+@AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class CategoryControllerTest {
 
@@ -34,6 +37,9 @@ class CategoryControllerTest {
 
     @MockitoBean
     private CategoryService categoryService;
+
+    @MockitoBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Test
     void shouldCreateCategorySuccessfully() throws Exception {

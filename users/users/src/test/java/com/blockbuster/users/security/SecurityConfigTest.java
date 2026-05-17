@@ -13,6 +13,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -23,9 +24,11 @@ import org.springframework.test.web.servlet.MockMvc;
 	JwtUtils.class,
 	JwtAuthenticationFilter.class,
 	JwtAuthenticationEntryPoint.class,
-	JwtAccessDeniedHandler.class
+	JwtAccessDeniedHandler.class,
+	InternalApiKeyFilter.class
 })
 @ActiveProfiles("test")
+@TestPropertySource(properties = "internal.api.key=test-internal-key")
 class SecurityConfigTest {
 
 	@Autowired
@@ -46,6 +49,22 @@ class SecurityConfigTest {
 		mockMvc.perform(get("/api/v1/users/secure-ping").with(csrf()))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.message").value("No autorizado"));
+	}
+
+	@Test
+	void shouldRejectInternalUsersEndpointWithoutApiKey() throws Exception {
+		mockMvc.perform(get("/api/v1/users/internal/ping").with(csrf()))
+			.andExpect(status().isUnauthorized())
+			.andExpect(content().string("{\"message\":\"API key interna invalida\"}"));
+	}
+
+	@Test
+	void shouldAllowInternalUsersEndpointWithApiKey() throws Exception {
+		mockMvc.perform(get("/api/v1/users/internal/ping")
+				.header("X-Internal-Api-Key", "test-internal-key")
+				.with(csrf()))
+			.andExpect(status().isOk())
+			.andExpect(content().string("internal"));
 	}
 
 	@Test

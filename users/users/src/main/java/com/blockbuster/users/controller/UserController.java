@@ -32,4 +32,9 @@ public class UserController {
 	public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long id) {
 		return ResponseEntity.ok(userService.getUserById(id));
 	}
+
+	@GetMapping("/internal/{id}")
+	public ResponseEntity<UserResponseDTO> getInternalUserById(@PathVariable Long id) {
+		return ResponseEntity.ok(userService.getUserById(id));
+	}
 }
