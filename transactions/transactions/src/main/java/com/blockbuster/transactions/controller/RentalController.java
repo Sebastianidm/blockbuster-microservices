@@ -42,9 +42,9 @@ public class RentalController {
         return ResponseEntity.ok(rentalService.getAllRentals());
     }
 
-    // PUT: http://localhost:8083/api/v1/rentals/1/return
+    // PATCH: http://localhost:8083/api/v1/rentals/1/return
     @PreAuthorize("hasAnyRole('EMPLOYEE','ADMIN')")
-    @PutMapping("/{id}/return")
+    @RequestMapping(path = "/{id}/return", method = {RequestMethod.PATCH, RequestMethod.PUT})
     public ResponseEntity<RentalResponseDTO> returnRental(@PathVariable Long id) {
         RentalResponseDTO returnedRental = rentalService.returnRental(id);
         return ResponseEntity.ok(returnedRental);

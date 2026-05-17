@@ -105,6 +105,25 @@ class MovieControllerTest {
     }
 
     @Test
+    void shouldRestoreMovieStockSuccessfully() throws Exception {
+        when(movieService.restoreMovieStock(7L, 2)).thenReturn(MovieResponseDTO.builder()
+                .id(7L)
+                .title("Mad Max")
+                .categoryId(1L)
+                .categoryName("Action")
+                .releaseYear(2015)
+                .stock(5)
+                .available(true)
+                .build());
+
+        mockMvc.perform(patch("/api/v1/movies/7/stock/restore")
+                        .param("quantity", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stock").value(5))
+                .andExpect(jsonPath("$.available").value(true));
+    }
+
+    @Test
     void shouldReturnConflictWhenMovieStockIsInsufficient() throws Exception {
         when(movieService.checkAndDiscountStock(7L, 10))
                 .thenThrow(new CatalogException("Stock insuficiente para la película con ID: 7", HttpStatus.CONFLICT));

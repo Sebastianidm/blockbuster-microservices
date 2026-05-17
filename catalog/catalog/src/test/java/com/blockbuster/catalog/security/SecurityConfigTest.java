@@ -56,6 +56,22 @@ class SecurityConfigTest {
     }
 
     @Test
+    void shouldRejectInternalRestoreEndpointWithoutApiKey() throws Exception {
+        mockMvc.perform(patch("/api/v1/movies/1/stock/restore").with(csrf()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string("{\"message\":\"API key interna invalida\"}"));
+    }
+
+    @Test
+    void shouldAllowInternalRestoreEndpointWithApiKey() throws Exception {
+        mockMvc.perform(patch("/api/v1/movies/1/stock/restore")
+                        .header("X-Internal-Api-Key", "test-internal-key")
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(content().string("restore"));
+    }
+
+    @Test
     void shouldAllowProtectedEndpointWithAuthenticatedUser() throws Exception {
         mockMvc.perform(get("/api/v1/catalog/secure-ping")
                         .with(user("martin").roles("USER"))

@@ -18,6 +18,11 @@ class SecurityTestController {
         return "discount";
     }
 
+    @PatchMapping("/api/v1/movies/1/stock/restore")
+    public String internalRestorePing() {
+        return "restore";
+    }
+
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/api/v1/catalog/admin-ping")
     public String adminPing() {

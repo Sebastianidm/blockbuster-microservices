@@ -12,4 +12,7 @@ public interface CatalogClient {
 
 	@PatchMapping("/api/v1/movies/{id}/stock/discount")
 	MovieClientResponse checkAndDiscountStock(@PathVariable("id") Long movieId, @RequestParam int quantity);
+
+	@PatchMapping("/api/v1/movies/{id}/stock/restore")
+	MovieClientResponse restoreStock(@PathVariable("id") Long movieId, @RequestParam int quantity);
 }

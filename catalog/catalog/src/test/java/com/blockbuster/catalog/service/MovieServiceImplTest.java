@@ -166,10 +166,53 @@ class MovieServiceImplTest {
     }
 
     @Test
+    void shouldRestoreStockAndMarkMovieAsAvailable() {
+        Category category = Category.builder()
+                .id(6L)
+                .name("Family")
+                .build();
+
+        Movie movie = Movie.builder()
+                .id(12L)
+                .title("Coraline")
+                .category(category)
+                .releaseYear(2009)
+                .stock(0)
+                .available(false)
+                .build();
+
+        when(movieRepository.findById(12L)).thenReturn(Optional.of(movie));
+        when(movieRepository.save(movie)).thenReturn(movie);
+        when(movieMapper.toResponseDTO(movie)).thenReturn(MovieResponseDTO.builder()
+                .id(12L)
+                .title("Coraline")
+                .categoryId(6L)
+                .categoryName("Family")
+                .releaseYear(2009)
+                .stock(2)
+                .available(true)
+                .build());
+
+        MovieResponseDTO result = movieService.restoreMovieStock(12L, 2);
+
+        assertThat(result.getStock()).isEqualTo(2);
+        assertThat(result.getAvailable()).isTrue();
+        assertThat(movie.getStock()).isEqualTo(2);
+        assertThat(movie.getAvailable()).isTrue();
+    }
+
+    @Test
     void shouldThrowExceptionWhenQuantityIsInvalid() {
         assertThatThrownBy(() -> movieService.checkAndDiscountStock(5L, 0))
                 .isInstanceOf(CatalogException.class)
                 .hasMessage("La cantidad a descontar debe ser mayor a cero");
+    }
+
+    @Test
+    void shouldThrowExceptionWhenRestoreQuantityIsInvalid() {
+        assertThatThrownBy(() -> movieService.restoreMovieStock(5L, 0))
+                .isInstanceOf(CatalogException.class)
+                .hasMessage("La cantidad a reintegrar debe ser mayor a cero");
     }
 
     @Test

@@ -105,8 +105,19 @@ public class RentalServiceImpl implements RentalService {
     @Transactional
     public RentalResponseDTO returnRental(Long rentalId) {
         Rental rental = getRentalEntityById(rentalId);
+
+        if ("RETURNED".equalsIgnoreCase(rental.getStatus())) {
+            throw new TransactionException(HttpStatus.CONFLICT,
+                    "El arriendo con ID " + rentalId + " ya fue marcado como devuelto");
+        }
+
+        restoreMoviesToCatalog(rental);
         rental.setStatus("RETURNED");
         Rental updatedRental = rentalRepository.save(rental);
+
+        UserClientResponse user = validateUserExists(updatedRental.getUserId());
+        sendReturnConfirmation(updatedRental, user);
+
         return rentalMapper.toResponseDTO(updatedRental);
     }
 
@@ -137,6 +148,8 @@ public class RentalServiceImpl implements RentalService {
         } catch (FeignException.NotFound ex) {
             throw new TransactionException(HttpStatus.NOT_FOUND, "No existe un usuario con ID: " + userId);
         } catch (FeignException ex) {
+            log.error("Error al validar usuario {} en ms-users. Status: {} Body: {}",
+                    userId, ex.status(), ex.contentUTF8(), ex);
             throw new TransactionException(HttpStatus.BAD_GATEWAY, "No fue posible validar el usuario en ms-users");
         }
     }
@@ -149,8 +162,43 @@ public class RentalServiceImpl implements RentalService {
         } catch (FeignException.BadRequest | FeignException.Conflict ex) {
             throw new TransactionException(HttpStatus.CONFLICT,
                     "No hay stock suficiente o la pelicula no esta disponible para el ID: " + movieId);
+        } catch (FeignException.Unauthorized | FeignException.Forbidden ex) {
+            log.error("Autenticacion interna rechazada por ms-catalog para movieId {}. Status: {} Body: {}",
+                    movieId, ex.status(), ex.contentUTF8(), ex);
+            throw new TransactionException(HttpStatus.BAD_GATEWAY,
+                    "La autenticacion interna contra ms-catalog fue rechazada. Verifica INTERNAL_API_KEY");
         } catch (FeignException ex) {
+            log.error("Error al validar stock en ms-catalog para movieId {} y quantity {}. Status: {} Body: {}",
+                    movieId, quantity, ex.status(), ex.contentUTF8(), ex);
             throw new TransactionException(HttpStatus.BAD_GATEWAY, "No fue posible validar el stock en ms-catalog");
+        }
+    }
+
+    private void restoreMoviesToCatalog(Rental rental) {
+        if (rental.getDetails() == null || rental.getDetails().isEmpty()) {
+            return;
+        }
+
+        for (RentalDetail detail : rental.getDetails()) {
+            try {
+                catalogClient.restoreStock(detail.getMovieId(), detail.getQuantity());
+            } catch (FeignException.NotFound ex) {
+                throw new TransactionException(HttpStatus.NOT_FOUND,
+                        "No existe una pelicula con ID: " + detail.getMovieId());
+            } catch (FeignException.BadRequest ex) {
+                throw new TransactionException(HttpStatus.BAD_REQUEST,
+                        "La cantidad a reintegrar es invalida para la pelicula con ID: " + detail.getMovieId());
+            } catch (FeignException.Unauthorized | FeignException.Forbidden ex) {
+                log.error("Autenticacion interna rechazada por ms-catalog al reintegrar stock para movieId {}. Status: {} Body: {}",
+                        detail.getMovieId(), ex.status(), ex.contentUTF8(), ex);
+                throw new TransactionException(HttpStatus.BAD_GATEWAY,
+                        "La autenticacion interna contra ms-catalog fue rechazada al reintegrar stock");
+            } catch (FeignException ex) {
+                log.error("Error al reintegrar stock en ms-catalog para movieId {} y quantity {}. Status: {} Body: {}",
+                        detail.getMovieId(), detail.getQuantity(), ex.status(), ex.contentUTF8(), ex);
+                throw new TransactionException(HttpStatus.BAD_GATEWAY,
+                        "No fue posible reintegrar el stock en ms-catalog");
+            }
         }
     }
 
@@ -193,6 +241,23 @@ public class RentalServiceImpl implements RentalService {
         }
     }
 
+    private void sendReturnConfirmation(Rental rental, UserClientResponse user) {
+        NotificationClientRequest notificationRequest = NotificationClientRequest.builder()
+                .userId(user.getId())
+                .recipientEmail(user.getEmail())
+                .subject("Confirmacion de devolucion Blockbuster")
+                .message(buildReturnMessage(rental))
+                .type("RENTAL_RETURN")
+                .build();
+
+        try {
+            notificationsClient.sendNotification(notificationRequest);
+        } catch (RuntimeException ex) {
+            log.warn("No se pudo enviar la confirmacion de devolucion del arriendo {} al usuario {}",
+                    rental.getId(), user.getId(), ex);
+        }
+    }
+
     private String buildRentalMessage(Rental rental) {
         int totalMovies = rental.getDetails() == null ? 0 : rental.getDetails().stream()
                 .mapToInt(RentalDetail::getQuantity)
@@ -201,5 +266,14 @@ public class RentalServiceImpl implements RentalService {
         return "Tu arriendo #" + rental.getId()
                 + " fue creado con exito. Total peliculas: " + totalMovies
                 + ". Monto total: $" + rental.getTotalAmount() + ".";
+    }
+
+    private String buildReturnMessage(Rental rental) {
+        int totalMovies = rental.getDetails() == null ? 0 : rental.getDetails().stream()
+                .mapToInt(RentalDetail::getQuantity)
+                .sum();
+
+        return "Tu arriendo #" + rental.getId()
+                + " fue marcado como devuelto. Total peliculas reintegradas: " + totalMovies + ".";
     }
 }

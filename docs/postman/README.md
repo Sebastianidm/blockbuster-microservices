@@ -54,8 +54,11 @@ La coleccion guarda automaticamente:
 - creacion de categoria y pelicula
 - consulta de catalogo
 - descuento interno de stock
+- reintegro interno de stock
 - envio directo de notificacion
 - creacion de arriendo
 - consulta de arriendos por usuario
-- devolucion del arriendo
+- consulta administrativa de todos los arriendos
+- devolucion del arriendo por `PATCH`
+- eliminacion administrativa del arriendo
 - pruebas negativas de JWT y API key

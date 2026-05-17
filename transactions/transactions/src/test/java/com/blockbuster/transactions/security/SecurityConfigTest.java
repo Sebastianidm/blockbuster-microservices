@@ -4,6 +4,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -114,7 +115,25 @@ class SecurityConfigTest {
     }
 
     @Test
-    void shouldAllowEmployeeToReturnRental() throws Exception {
+    void shouldAllowEmployeeToReturnRentalWithPatch() throws Exception {
+        when(rentalService.returnRental(5L)).thenReturn(RentalResponseDTO.builder()
+                .id(5L)
+                .userId(25L)
+                .rentalDate(LocalDateTime.now().minusDays(3))
+                .returnDate(LocalDateTime.now())
+                .status("RETURNED")
+                .totalAmount(BigDecimal.valueOf(5000))
+                .details(List.of())
+                .build());
+
+        mockMvc.perform(patch("/api/v1/rentals/5/return")
+                        .with(user("employee").roles("EMPLOYEE"))
+                        .with(csrf()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void shouldAllowEmployeeToReturnRentalWithPutForBackwardCompatibility() throws Exception {
         when(rentalService.returnRental(5L)).thenReturn(RentalResponseDTO.builder()
                 .id(5L)
                 .userId(25L)

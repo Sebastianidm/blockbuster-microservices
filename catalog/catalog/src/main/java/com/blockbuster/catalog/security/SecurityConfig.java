@@ -29,7 +29,8 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/movies/*/stock/discount", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers("/api/v1/movies/*/stock/discount", "/api/v1/movies/*/stock/restore",
+                                "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

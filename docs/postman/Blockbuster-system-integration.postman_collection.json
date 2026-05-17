@@ -345,6 +345,38 @@
               ]
             }
           }
+        },
+        {
+          "name": "Reingreso interno de stock",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Internal-Api-Key",
+                "value": "{{internal_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/v1/movies/{{movie_id}}/stock/restore?quantity=1",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "movies",
+                "{{movie_id}}",
+                "stock",
+                "restore"
+              ],
+              "query": [
+                {
+                  "key": "quantity",
+                  "value": "1"
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -459,9 +491,45 @@
           }
         },
         {
-          "name": "Devolver arriendo",
+          "name": "Listar todos los arriendos",
           "request": {
-            "method": "PUT",
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{transactions_url}}/api/v1/rentals",
+              "host": [
+                "{{transactions_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rentals"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Devolver arriendo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
             "header": [
               {
                 "key": "Authorization",
@@ -479,6 +547,30 @@
                 "rentals",
                 "{{rental_id}}",
                 "return"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Eliminar arriendo",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{transactions_url}}/api/v1/rentals/{{rental_id}}",
+              "host": [
+                "{{transactions_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rentals",
+                "{{rental_id}}"
               ]
             }
           }

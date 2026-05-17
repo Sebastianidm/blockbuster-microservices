@@ -16,7 +16,7 @@ public interface RentalService {
     // GET Buscar un arriendo por su ID
     RentalResponseDTO getRentalById(Long id);
 
-    // PUT  Marcar un arriendo como devuelto
+    // PATCH  Marcar un arriendo como devuelto
     RentalResponseDTO returnRental(Long rentalId);
 
     // GET ALL

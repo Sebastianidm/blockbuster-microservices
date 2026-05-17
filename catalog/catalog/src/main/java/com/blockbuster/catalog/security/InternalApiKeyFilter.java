@@ -25,7 +25,9 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
-        return !pathMatcher.match("/api/v1/movies/*/stock/discount", request.getRequestURI());
+        boolean isDiscountEndpoint = pathMatcher.match("/api/v1/movies/*/stock/discount", request.getRequestURI());
+        boolean isRestoreEndpoint = pathMatcher.match("/api/v1/movies/*/stock/restore", request.getRequestURI());
+        return !(isDiscountEndpoint || isRestoreEndpoint);
     }
 
     @Override

@@ -29,7 +29,7 @@ public class MovieServiceImpl implements MovieService {
     @Transactional
     public MovieResponseDTO createMovie(MovieRequestDTO request) {
         String normalizedTitle = normalizeRequiredText(request.getTitle());
-        log.info("Creando película con título: {}", normalizedTitle);
+        log.info("Creando pelicula con titulo: {}", normalizedTitle);
 
         Category category = getCategoryEntityById(request.getCategoryId());
         Movie movie = movieMapper.toEntity(request, category);
@@ -63,7 +63,7 @@ public class MovieServiceImpl implements MovieService {
     public List<MovieResponseDTO> searchMoviesByTitle(String title) {
         String normalizedTitle = normalizeRequiredText(title);
         if (normalizedTitle == null || normalizedTitle.isBlank()) {
-            throw new CatalogException("El texto de búsqueda de películas es obligatorio", HttpStatus.BAD_REQUEST);
+            throw new CatalogException("El texto de busqueda de peliculas es obligatorio", HttpStatus.BAD_REQUEST);
         }
 
         return movieRepository.findByTitleContainingIgnoreCase(normalizedTitle).stream()
@@ -103,7 +103,7 @@ public class MovieServiceImpl implements MovieService {
     @Override
     @Transactional
     public MovieResponseDTO checkAndDiscountStock(Long movieId, int quantity) {
-        log.info("Validando y descontando stock para la película ID: {} con cantidad: {}", movieId, quantity);
+        log.info("Validando y descontando stock para la pelicula ID: {} con cantidad: {}", movieId, quantity);
 
         if (quantity <= 0) {
             throw new CatalogException("La cantidad a descontar debe ser mayor a cero", HttpStatus.BAD_REQUEST);
@@ -112,11 +112,11 @@ public class MovieServiceImpl implements MovieService {
         Movie movie = getMovieEntityById(movieId);
 
         if (!Boolean.TRUE.equals(movie.getAvailable())) {
-            throw new CatalogException("La película no está disponible para arriendo", HttpStatus.CONFLICT);
+            throw new CatalogException("La pelicula no esta disponible para arriendo", HttpStatus.CONFLICT);
         }
 
         if (movie.getStock() < quantity) {
-            throw new CatalogException("Stock insuficiente para la película con ID: " + movieId, HttpStatus.CONFLICT);
+            throw new CatalogException("Stock insuficiente para la pelicula con ID: " + movieId, HttpStatus.CONFLICT);
         }
 
         int updatedStock = movie.getStock() - quantity;
@@ -124,19 +124,39 @@ public class MovieServiceImpl implements MovieService {
         movie.setAvailable(updatedStock > 0);
 
         Movie updatedMovie = movieRepository.save(movie);
-        log.info("Stock actualizado para la película ID {}. Nuevo stock: {}", movieId, updatedStock);
+        log.info("Stock actualizado para la pelicula ID {}. Nuevo stock: {}", movieId, updatedStock);
+
+        return movieMapper.toResponseDTO(updatedMovie);
+    }
+
+    @Override
+    @Transactional
+    public MovieResponseDTO restoreMovieStock(Long movieId, int quantity) {
+        log.info("Reintegrando stock para la pelicula ID: {} con cantidad: {}", movieId, quantity);
+
+        if (quantity <= 0) {
+            throw new CatalogException("La cantidad a reintegrar debe ser mayor a cero", HttpStatus.BAD_REQUEST);
+        }
+
+        Movie movie = getMovieEntityById(movieId);
+        int updatedStock = movie.getStock() + quantity;
+        movie.setStock(updatedStock);
+        movie.setAvailable(true);
+
+        Movie updatedMovie = movieRepository.save(movie);
+        log.info("Stock reintegrado para la pelicula ID {}. Nuevo stock: {}", movieId, updatedStock);
 
         return movieMapper.toResponseDTO(updatedMovie);
     }
 
     private Movie getMovieEntityById(Long id) {
         return movieRepository.findById(id)
-                .orElseThrow(() -> new CatalogException("Película no encontrada con ID: " + id, HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new CatalogException("Pelicula no encontrada con ID: " + id, HttpStatus.NOT_FOUND));
     }
 
     private Category getCategoryEntityById(Long id) {
         return categoryRepository.findById(id)
-                .orElseThrow(() -> new CatalogException("Categoría no encontrada con ID: " + id, HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new CatalogException("Categoria no encontrada con ID: " + id, HttpStatus.NOT_FOUND));
     }
 
     private String normalizeRequiredText(String value) {

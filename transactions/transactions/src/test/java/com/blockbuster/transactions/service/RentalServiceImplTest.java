@@ -39,6 +39,7 @@ import com.blockbuster.transactions.model.dto.RentalDetailResponseDTO;
 import com.blockbuster.transactions.model.dto.RentalRequestDTO;
 import com.blockbuster.transactions.model.dto.RentalResponseDTO;
 import com.blockbuster.transactions.model.entity.Rental;
+import com.blockbuster.transactions.model.entity.RentalDetail;
 import com.blockbuster.transactions.repository.RentalDetailRepository;
 import com.blockbuster.transactions.repository.RentalRepository;
 
@@ -257,6 +258,64 @@ class RentalServiceImplTest {
         RentalResponseDTO result = assertDoesNotThrow(() -> rentalService.createRental(request));
 
         assertEquals(response, result);
+    }
+
+    @Test
+    void shouldReturnRentalRestoringStockAndSendingNotification() {
+        Rental rental = Rental.builder()
+                .id(200L)
+                .userId(25L)
+                .rentalDate(LocalDateTime.of(2026, 5, 17, 3, 0))
+                .returnDate(LocalDateTime.of(2026, 5, 20, 3, 0))
+                .status("ACTIVE")
+                .totalAmount(new BigDecimal("2500.00"))
+                .details(List.of(RentalDetail.builder()
+                        .movieId(42L)
+                        .quantity(1)
+                        .priceAtMoment(new BigDecimal("2500.00"))
+                        .build()))
+                .build();
+
+        RentalResponseDTO response = RentalResponseDTO.builder()
+                .id(200L)
+                .userId(25L)
+                .status("RETURNED")
+                .totalAmount(new BigDecimal("2500.00"))
+                .details(List.of())
+                .build();
+
+        when(rentalRepository.findById(200L)).thenReturn(java.util.Optional.of(rental));
+        when(catalogClient.restoreStock(42L, 1)).thenReturn(movieResponse(42L));
+        when(rentalRepository.save(rental)).thenReturn(rental);
+        when(usersClient.getUserById(25L)).thenReturn(userResponse(25L));
+        when(rentalMapper.toResponseDTO(rental)).thenReturn(response);
+
+        RentalResponseDTO result = rentalService.returnRental(200L);
+
+        assertEquals("RETURNED", rental.getStatus());
+        assertEquals(response, result);
+        verify(catalogClient).restoreStock(42L, 1);
+        verify(notificationsClient).sendNotification(argThat(notification ->
+                notification.getUserId().equals(25L)
+                        && notification.getType().equals("RENTAL_RETURN")));
+    }
+
+    @Test
+    void shouldRejectReturningAlreadyReturnedRental() {
+        Rental rental = Rental.builder()
+                .id(201L)
+                .userId(25L)
+                .status("RETURNED")
+                .details(List.of())
+                .build();
+
+        when(rentalRepository.findById(201L)).thenReturn(java.util.Optional.of(rental));
+
+        TransactionException exception = assertThrows(TransactionException.class, () -> rentalService.returnRental(201L));
+
+        assertEquals(HttpStatus.CONFLICT, exception.getStatus());
+        verify(catalogClient, never()).restoreStock(any(Long.class), any(Integer.class));
+        verify(rentalRepository, never()).save(any(Rental.class));
     }
 
     private RentalDetailRequestDTO movieRequest(Long movieId, Integer quantity) {

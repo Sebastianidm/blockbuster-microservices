@@ -59,6 +59,19 @@
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-openfeign</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>org.apache.httpcomponents.client5</groupId>
+			<artifactId>httpclient5</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.github.openfeign</groupId>
+			<artifactId>feign-hc5</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>3.0.3</version>
+		</dependency>
 
 		<dependency>
 			<groupId>org.postgresql</groupId>
