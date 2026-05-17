@@ -8,6 +8,11 @@ import com.blockbuster.transactions.model.entity.Rental;
 import com.blockbuster.transactions.model.entity.RentalDetail;
 import com.blockbuster.transactions.repository.RentalDetailRepository;
 import com.blockbuster.transactions.repository.RentalRepository;
+import com.blockbuster.transactions.client.CatalogClient;
+import com.blockbuster.transactions.client.UserClient;
+import com.blockbuster.transactions.client.dto.MovieClientDTO;
+import com.blockbuster.transactions.client.dto.UserClientDTO;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,6 +33,10 @@ public class RentalServiceImpl implements RentalService {
     private final RentalDetailRepository rentalDetailRepository;
     private final RentalMapper rentalMapper;
 
+    // Clientes Feign inyectados
+    private final CatalogClient catalogClient;
+    private final UserClient userClient;
+
     private static final BigDecimal DAILY_RENTAL_PRICE = new BigDecimal("2500.00");
     private static final int RENTAL_DAYS_ALLOWED = 3;
 
@@ -36,7 +45,17 @@ public class RentalServiceImpl implements RentalService {
     public RentalResponseDTO createRental(RentalRequestDTO request) {
         log.info("Iniciando creación de arriendo para el usuario ID: {}", request.getUserId());
 
-        // Aquí llamaremos al microservicio users con feign para validar que el usuario existe
+        // 1. Validar vía Feign que el usuario existe en ms-users
+        try {
+            UserClientDTO user = userClient.getUserById(request.getUserId());
+            log.info("Usuario validado exitosamente por red: {}", user.getUsername());
+        } catch (FeignException.NotFound e) {
+            log.error("Bloqueo de negocio: El usuario ID {} no existe en ms-users", request.getUserId());
+            throw new RuntimeException("Usuario no encontrado en el sistema central.");
+        } catch (FeignException e) {
+            log.error("Error de comunicación con ms-users: {}", e.getMessage());
+            throw new RuntimeException("El servicio de usuarios está temporalmente fuera de línea.");
+        }
 
         // Crear la cabecera del arriendo
         Rental rental = Rental.builder()
@@ -52,7 +71,25 @@ public class RentalServiceImpl implements RentalService {
 
         // Procesar cada película solicitada
         for (RentalDetailRequestDTO movieRequest : request.getMovies()) {
-            //  Aquí llamaremos al microservicio catalogo con feign para validar stock y obtener precio real
+
+            // 2. Validar vía Feign stock y disponibilidad en ms-catalog
+            try {
+                MovieClientDTO movie = catalogClient.getMovieById(movieRequest.getMovieId());
+
+                if (!movie.getAvailable() || movie.getStock() < movieRequest.getQuantity()) {
+                    log.error("Stock insuficiente para película: {}", movie.getTitle());
+                    throw new RuntimeException("Stock insuficiente para la película: " + movie.getTitle());
+                }
+                log.info("Película '{}' validada. Stock actual: {}", movie.getTitle(), movie.getStock());
+
+            } catch (FeignException.NotFound e) {
+                log.error("Película ID {} no existe en ms-catalog", movieRequest.getMovieId());
+                throw new RuntimeException("Película ID " + movieRequest.getMovieId() + " no existe en el catálogo.");
+            } catch (FeignException e) {
+                log.error("Error de comunicación con ms-catalog: {}", e.getMessage());
+                throw new RuntimeException("El servicio de catálogo está temporalmente fuera de línea.");
+            }
+
             RentalDetail detail = RentalDetail.builder()
                     .rental(rental)
                     .movieId(movieRequest.getMovieId())
