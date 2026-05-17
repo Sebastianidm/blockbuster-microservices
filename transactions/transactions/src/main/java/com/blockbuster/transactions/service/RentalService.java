@@ -10,12 +10,18 @@ public interface RentalService {
     // POST
     RentalResponseDTO createRental(RentalRequestDTO request);
 
-    // Obtener todos los arriendos de un usuario específico
+    // GET  Obtener todos los arriendos de un usuario específico
     List<RentalResponseDTO> getRentalsByUser(Long userId);
 
-    // Buscar un arriendo por su ID
+    // GET Buscar un arriendo por su ID
     RentalResponseDTO getRentalById(Long id);
 
-    // Marcar un arriendo como devuelto
+    // PUT  Marcar un arriendo como devuelto
     RentalResponseDTO returnRental(Long rentalId);
+
+    // GET ALL
+    List<RentalResponseDTO> getAllRentals();
+
+    // DEL
+    void deleteRental(Long id);
 }

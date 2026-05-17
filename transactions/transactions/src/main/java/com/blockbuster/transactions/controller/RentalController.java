@@ -32,10 +32,22 @@ public class RentalController {
         return ResponseEntity.ok(rentals);
     }
 
+    // GET: Obtener todos los arriendos.
+    @GetMapping
+    public ResponseEntity<List<RentalResponseDTO>> getAll() {
+        return ResponseEntity.ok(rentalService.getAllRentals());
+    }
+
     // PUT: http://localhost:8083/api/v1/rentals/1/return
     @PutMapping("/{id}/return")
     public ResponseEntity<RentalResponseDTO> returnRental(@PathVariable Long id) {
         RentalResponseDTO returnedRental = rentalService.returnRental(id);
         return ResponseEntity.ok(returnedRental);
+    }
+    // DEL: Eliminar arriendo por id ( solicitado en la rubrica )
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        rentalService.deleteRental(id);
+        return ResponseEntity.noContent().build(); // Devuelve un 204 No Content
     }
 }

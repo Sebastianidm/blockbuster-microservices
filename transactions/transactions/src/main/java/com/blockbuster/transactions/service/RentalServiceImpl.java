@@ -142,6 +142,23 @@ public class RentalServiceImpl implements RentalService {
         return rentalMapper.toResponseDTO(updatedRental);
     }
 
+    @Override
+    public List<RentalResponseDTO> getAllRentals() {
+        return rentalRepository.findAll().stream()
+                .map(rentalMapper::toResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void deleteRental(Long id) {
+        Rental rental = getRentalEntityById(id);
+
+        //Eliminacion fisica para cumplir con rubrica de profe.
+        rentalRepository.delete(rental);
+        log.info("Arriendo ID {} eliminado de la base de datos", id);
+    }
+
     // Método privado auxiliar para buscar en la base de datos (retorna la Entidad para uso interno)
     private Rental getRentalEntityById(Long id) {
         return rentalRepository.findById(id)
