@@ -28,10 +28,13 @@ public class MovieServiceImpl implements MovieService {
     @Override
     @Transactional
     public MovieResponseDTO createMovie(MovieRequestDTO request) {
-        log.info("Creando película con título: {}", request.getTitle());
+        String normalizedTitle = normalizeRequiredText(request.getTitle());
+        log.info("Creando película con título: {}", normalizedTitle);
 
         Category category = getCategoryEntityById(request.getCategoryId());
         Movie movie = movieMapper.toEntity(request, category);
+        movie.setTitle(normalizedTitle);
+        movie.setAvailable(resolveAvailability(request.getAvailable(), request.getStock()));
         Movie savedMovie = movieRepository.save(movie);
 
         return movieMapper.toResponseDTO(savedMovie);
@@ -58,7 +61,12 @@ public class MovieServiceImpl implements MovieService {
 
     @Override
     public List<MovieResponseDTO> searchMoviesByTitle(String title) {
-        return movieRepository.findByTitleContainingIgnoreCase(title).stream()
+        String normalizedTitle = normalizeRequiredText(title);
+        if (normalizedTitle == null || normalizedTitle.isBlank()) {
+            throw new CatalogException("El texto de búsqueda de películas es obligatorio", HttpStatus.BAD_REQUEST);
+        }
+
+        return movieRepository.findByTitleContainingIgnoreCase(normalizedTitle).stream()
                 .map(movieMapper::toResponseDTO)
                 .toList();
     }
@@ -76,11 +84,11 @@ public class MovieServiceImpl implements MovieService {
         Movie movie = getMovieEntityById(id);
         Category category = getCategoryEntityById(request.getCategoryId());
 
-        movie.setTitle(request.getTitle());
+        movie.setTitle(normalizeRequiredText(request.getTitle()));
         movie.setCategory(category);
         movie.setReleaseYear(request.getReleaseYear());
         movie.setStock(request.getStock());
-        movie.setAvailable(request.getAvailable() != null ? request.getAvailable() : request.getStock() > 0);
+        movie.setAvailable(resolveAvailability(request.getAvailable(), request.getStock()));
 
         return movieMapper.toResponseDTO(movieRepository.save(movie));
     }
@@ -129,5 +137,17 @@ public class MovieServiceImpl implements MovieService {
     private Category getCategoryEntityById(Long id) {
         return categoryRepository.findById(id)
                 .orElseThrow(() -> new CatalogException("Categoría no encontrada con ID: " + id, HttpStatus.NOT_FOUND));
+    }
+
+    private String normalizeRequiredText(String value) {
+        return value == null ? null : value.trim();
+    }
+
+    private boolean resolveAvailability(Boolean requestedAvailability, Integer stock) {
+        if (stock == null || stock <= 0) {
+            return false;
+        }
+
+        return requestedAvailability == null || requestedAvailability;
     }
 }

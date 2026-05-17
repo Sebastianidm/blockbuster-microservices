@@ -25,13 +25,17 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public CategoryResponseDTO createCategory(CategoryRequestDTO request) {
-        log.info("Creando categoría con nombre: {}", request.getName());
+        String normalizedName = normalizeRequiredText(request.getName());
+        String normalizedDescription = normalizeOptionalText(request.getDescription());
+        log.info("Creando categoría con nombre: {}", normalizedName);
 
-        if (categoryRepository.existsByNameIgnoreCase(request.getName())) {
-            throw new CatalogException("Ya existe una categoría con el nombre: " + request.getName(), HttpStatus.CONFLICT);
+        if (categoryRepository.existsByNameIgnoreCase(normalizedName)) {
+            throw new CatalogException("Ya existe una categoría con el nombre: " + normalizedName, HttpStatus.CONFLICT);
         }
 
         Category category = categoryMapper.toEntity(request);
+        category.setName(normalizedName);
+        category.setDescription(normalizedDescription);
         Category savedCategory = categoryRepository.save(category);
 
         return categoryMapper.toResponseDTO(savedCategory);
@@ -53,14 +57,16 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional
     public CategoryResponseDTO updateCategory(Long id, CategoryRequestDTO request) {
         Category category = getCategoryEntityById(id);
+        String normalizedName = normalizeRequiredText(request.getName());
+        String normalizedDescription = normalizeOptionalText(request.getDescription());
 
-        if (!category.getName().equalsIgnoreCase(request.getName())
-                && categoryRepository.existsByNameIgnoreCase(request.getName())) {
-            throw new CatalogException("Ya existe una categoría con el nombre: " + request.getName(), HttpStatus.CONFLICT);
+        if (!category.getName().equalsIgnoreCase(normalizedName)
+                && categoryRepository.existsByNameIgnoreCase(normalizedName)) {
+            throw new CatalogException("Ya existe una categoría con el nombre: " + normalizedName, HttpStatus.CONFLICT);
         }
 
-        category.setName(request.getName());
-        category.setDescription(request.getDescription());
+        category.setName(normalizedName);
+        category.setDescription(normalizedDescription);
 
         return categoryMapper.toResponseDTO(categoryRepository.save(category));
     }
@@ -75,5 +81,18 @@ public class CategoryServiceImpl implements CategoryService {
     private Category getCategoryEntityById(Long id) {
         return categoryRepository.findById(id)
                 .orElseThrow(() -> new CatalogException("Categoría no encontrada con ID: " + id, HttpStatus.NOT_FOUND));
+    }
+
+    private String normalizeRequiredText(String value) {
+        return value == null ? null : value.trim();
+    }
+
+    private String normalizeOptionalText(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String trimmedValue = value.trim();
+        return trimmedValue.isEmpty() ? null : trimmedValue;
     }
 }
