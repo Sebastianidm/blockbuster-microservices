@@ -26,8 +26,8 @@ class MovieRepositoryTest {
     @Test
     void shouldFindMoviesByCategoryId() {
         Category category = categoryRepository.save(Category.builder()
-                .name("Horror")
-                .description("Películas de terror")
+                .name("Thriller Repository")
+                .description("Peliculas de suspenso para pruebas de repositorio")
                 .build());
 
         movieRepository.save(Movie.builder()
@@ -39,9 +39,9 @@ class MovieRepositoryTest {
                 .build());
 
         movieRepository.save(Movie.builder()
-                .title("The Conjuring")
+                .title("The Ring")
                 .category(category)
-                .releaseYear(2013)
+                .releaseYear(2002)
                 .stock(3)
                 .available(true)
                 .build());
@@ -51,14 +51,14 @@ class MovieRepositoryTest {
         assertThat(movies).hasSize(2);
         assertThat(movies)
                 .extracting(Movie::getTitle)
-                .containsExactlyInAnyOrder("Scream", "The Conjuring");
+                .containsExactlyInAnyOrder("Scream", "The Ring");
     }
 
     @Test
     void shouldFindMoviesByTitleContainingIgnoringCase() {
         Category category = categoryRepository.save(Category.builder()
                 .name("Adventure")
-                .description("Películas de aventura")
+                .description("Peliculas de aventura")
                 .build());
 
         movieRepository.save(Movie.builder()
@@ -79,7 +79,7 @@ class MovieRepositoryTest {
     void shouldFindOnlyAvailableMovies() {
         Category category = categoryRepository.save(Category.builder()
                 .name("Fantasy")
-                .description("Películas fantásticas")
+                .description("Peliculas fantasticas")
                 .build());
 
         movieRepository.save(Movie.builder()

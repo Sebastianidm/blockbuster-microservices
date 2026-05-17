@@ -24,7 +24,6 @@ import com.blockbuster.transactions.model.dto.RentalRequestDTO;
 import com.blockbuster.transactions.model.dto.RentalResponseDTO;
 import com.blockbuster.transactions.model.entity.Rental;
 import com.blockbuster.transactions.model.entity.RentalDetail;
-import com.blockbuster.transactions.repository.RentalDetailRepository;
 import com.blockbuster.transactions.repository.RentalRepository;
 
 import feign.FeignException;
@@ -37,7 +36,6 @@ import lombok.extern.slf4j.Slf4j;
 public class RentalServiceImpl implements RentalService {
 
     private final RentalRepository rentalRepository;
-    private final RentalDetailRepository rentalDetailRepository;
     private final RentalMapper rentalMapper;
     private final UsersClient usersClient;
     private final CatalogClient catalogClient;
@@ -84,7 +82,6 @@ public class RentalServiceImpl implements RentalService {
         rental.setTotalAmount(totalAmount);
 
         Rental savedRental = rentalRepository.save(rental);
-
         sendRentalConfirmation(savedRental, user);
 
         log.info("Arriendo ID {} creado exitosamente con un total de ${}", savedRental.getId(), savedRental.getTotalAmount());
@@ -94,16 +91,14 @@ public class RentalServiceImpl implements RentalService {
 
     @Override
     public List<RentalResponseDTO> getRentalsByUser(Long userId) {
-        List<Rental> rentals = rentalRepository.findByUserId(userId);
-        return rentals.stream()
+        return rentalRepository.findByUserId(userId).stream()
                 .map(rentalMapper::toResponseDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     public RentalResponseDTO getRentalById(Long id) {
-        Rental rental = getRentalEntityById(id);
-        return rentalMapper.toResponseDTO(rental);
+        return rentalMapper.toResponseDTO(getRentalEntityById(id));
     }
 
     @Override
@@ -112,13 +107,28 @@ public class RentalServiceImpl implements RentalService {
         Rental rental = getRentalEntityById(rentalId);
         rental.setStatus("RETURNED");
         Rental updatedRental = rentalRepository.save(rental);
-
         return rentalMapper.toResponseDTO(updatedRental);
+    }
+
+    @Override
+    public List<RentalResponseDTO> getAllRentals() {
+        return rentalRepository.findAll().stream()
+                .map(rentalMapper::toResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void deleteRental(Long id) {
+        Rental rental = getRentalEntityById(id);
+        rentalRepository.delete(rental);
+        log.info("Arriendo ID {} eliminado de la base de datos", id);
     }
 
     private Rental getRentalEntityById(Long id) {
         return rentalRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Arriendo no encontrado con ID: " + id));
+                .orElseThrow(() -> new TransactionException(HttpStatus.NOT_FOUND,
+                        "No existe un arriendo con ID: " + id));
     }
 
     private UserClientResponse validateUserExists(Long userId) {

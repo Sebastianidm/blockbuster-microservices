@@ -2,6 +2,7 @@ package com.blockbuster.transactions.security;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -94,6 +95,25 @@ class SecurityConfigTest {
     }
 
     @Test
+    void shouldDenyUserRoleForGetAllRentals() throws Exception {
+        mockMvc.perform(get("/api/v1/rentals")
+                        .with(user("martin").roles("USER"))
+                        .with(csrf()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Acceso denegado"));
+    }
+
+    @Test
+    void shouldAllowAdminRoleForGetAllRentals() throws Exception {
+        when(rentalService.getAllRentals()).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/rentals")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void shouldAllowEmployeeToReturnRental() throws Exception {
         when(rentalService.returnRental(5L)).thenReturn(RentalResponseDTO.builder()
                 .id(5L)
@@ -109,5 +129,13 @@ class SecurityConfigTest {
                         .with(user("employee").roles("EMPLOYEE"))
                         .with(csrf()))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void shouldAllowAdminToDeleteRental() throws Exception {
+        mockMvc.perform(delete("/api/v1/rentals/5")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf()))
+                .andExpect(status().isNoContent());
     }
 }
