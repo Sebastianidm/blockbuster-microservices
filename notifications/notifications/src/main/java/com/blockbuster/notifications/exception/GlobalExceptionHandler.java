@@ -1,53 +1,44 @@
 package com.blockbuster.notifications.exception;
 
-import com.blockbuster.notifications.model.dto.ErrorResponseDTO;
+import java.time.LocalDateTime;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // Errores de @Valid
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponseDTO> handleValidationExceptions(MethodArgumentNotValidException ex){
+    public ResponseEntity<ApiErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex,
+                                                                       HttpServletRequest request) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .findFirst()
+                .map(error -> error.getDefaultMessage() == null ? "Solicitud invalida" : error.getDefaultMessage())
+                .orElse("Solicitud invalida");
 
-        List<String> errors = ex.getBindingResult()
-                .getFieldErrors()
-                .stream()
-                .map(error -> error.getField() + ": " + error.getDefaultMessage())
-                .collect(Collectors.toList());
-
-        ErrorResponseDTO errorResponse = ErrorResponseDTO.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.BAD_REQUEST.value())
-                .error("Error de validacion en los datos de entrada")
-                .details(errors)
-                .build();
-
-        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
-
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, message, request.getRequestURI());
     }
 
-    // Errores logíca de negocio
     @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<ErrorResponseDTO> handleRuntimeExceptions(RuntimeException ex) {
-        ErrorResponseDTO errorResponse = ErrorResponseDTO.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                .error("Error interno en la logíca de negocio")
-                .details(List.of(ex.getMessage()))
-                .build();
-
-        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    public ResponseEntity<ApiErrorResponse> handleRuntimeExceptions(RuntimeException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR,
+                "Ocurrio un error interno en el microservicio de notificaciones",
+                request.getRequestURI());
     }
 
+    private ResponseEntity<ApiErrorResponse> buildErrorResponse(HttpStatus status, String message, String path) {
+        ApiErrorResponse errorResponse = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(status.value())
+                .message(message)
+                .path(path)
+                .build();
 
-
-
+        return ResponseEntity.status(status).body(errorResponse);
+    }
 }

@@ -2,49 +2,82 @@
 
 Autor: Martin Caviedes
 
-`ms-users` es el microservicio encargado de la seguridad y la gestion de usuarios del sistema Blockbuster. Expone registro, login stateless con JWT y endpoints protegidos para consulta de usuarios.
+`ms-users` concentra identidad, autenticacion y gestion de usuarios para Blockbuster. Este servicio registra cuentas, autentica con JWT stateless, expone consultas protegidas para usuarios internos del sistema y dispara la notificacion de bienvenida al completar un registro.
 
-## Stack
+## Vista rapida
+
+| Aspecto | Valor |
+| --- | --- |
+| Puerto | `8082` |
+| Base de datos | PostgreSQL Neon |
+| Seguridad externa | JWT Bearer |
+| Seguridad interna | API key compartida |
+| Integracion saliente | `ms-notifications` por OpenFeign |
+| Documentacion | `/swagger-ui.html` |
+
+## Stack real
 
 - Java 21
 - Spring Boot 4.0.6
 - Spring Security
-- JWT (`jjwt`)
+- JJWT
 - Spring Data JPA
 - PostgreSQL
 - Flyway
 - Spring Validation
 - Springdoc OpenAPI
+- OpenFeign
 - JUnit 5, Mockito, MockMvc
 
-## Variables Locales
+## Que resuelve
+
+- Registro con validacion preventiva de `username` y `email`
+- Encriptacion de password con BCrypt
+- Login stateless con JWT firmado
+- Consulta protegida de usuarios por rol
+- Endpoint interno para interoperabilidad con `transactions`
+- Envio de correo de bienvenida a traves de `notifications`
+
+## Seguridad
+
+### Endpoints publicos
+
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `/swagger-ui.html`
+- `/v3/api-docs`
+
+### Endpoints protegidos por JWT
+
+- `GET /api/v1/users`
+- `GET /api/v1/users/{id}`
+
+### Endpoint interno protegido por API key
+
+- `GET /api/v1/users/internal/{id}`
+
+Este endpoint no usa JWT de usuario final. Solo acepta la cabecera:
+
+```text
+X-Internal-Api-Key: <shared-key>
+```
+
+## Variables locales
 
 Crea un archivo `.env` en [users/users](</C:/Users/marti/OneDrive/Desktop/BlockBuster Microservices/blockbuster-microservices/users/users>) usando como base [users/users/.env.example](</C:/Users/marti/OneDrive/Desktop/BlockBuster Microservices/blockbuster-microservices/users/users/.env.example>):
 
 ```properties
 DB_USERNAME=neondb_owner
-DB_PASSWORD=tu_password_real
-JWT_SECRET=una_clave_de_256_bits_o_mas
+DB_PASSWORD=replace_with_real_password
+JWT_SECRET=replace_with_a_256_bit_secret
 JWT_EXPIRATION=86400000
+INTERNAL_API_KEY=replace_with_shared_internal_api_key
+NOTIFICATIONS_SERVICE_URL=http://localhost:8084
 ```
-
-## Ejecucion
-
-Desde [users/users](</C:/Users/marti/OneDrive/Desktop/BlockBuster Microservices/blockbuster-microservices/users/users>):
-
-```bash
-mvn test
-mvn spring-boot:run
-```
-
-La API queda disponible en:
-
-- `http://localhost:8082`
-- Swagger UI: `http://localhost:8082/swagger-ui.html`
 
 ## Migraciones
 
-Flyway aplica estas versiones:
+Flyway aplica estas tres versiones:
 
 - `V1__create_initial_tables.sql`
 - `V2__insert_initial_data.sql`
@@ -52,16 +85,18 @@ Flyway aplica estas versiones:
 
 Usuario administrador semilla:
 
-- `username`: `admin`
-- `email`: `admin@blockbuster.com`
-- `password`: `Admin123!`
-- `role`: `ROLE_ADMIN`
+| Campo | Valor |
+| --- | --- |
+| `username` | `admin` |
+| `email` | `admin@blockbuster.com` |
+| `password` | `Admin123!` |
+| `role` | `ROLE_ADMIN` |
 
 ## Modelo
 
 ```mermaid
 erDiagram
-    ROLES ||--o{ USERS : "assigned_to"
+    ROLES ||--o{ USERS : assigned_to
 
     ROLES {
         BIGINT id PK
@@ -78,37 +113,27 @@ erDiagram
     }
 ```
 
-## Flujo JWT
+## Flujo principal
 
 ```mermaid
 flowchart TD
-    A["POST /api/v1/auth/login"] --> B["AuthController"]
+    A["POST /api/v1/auth/register"] --> B["AuthController"]
     B --> C["AuthServiceImpl"]
-    C --> D["AuthenticationManager valida credenciales"]
-    D --> E["UserService obtiene usuario"]
-    E --> F["JwtUtils genera token con userId y role"]
-    F --> G["LoginResponseDTO"]
-    G --> H["Cliente usa Authorization: Bearer token"]
-    H --> I["JwtAuthenticationFilter"]
-    I --> J["SecurityContextHolder autenticado"]
-    J --> K["Endpoints protegidos /api/v1/users/**"]
+    C --> D{"username/email existen?"}
+    D -- "Si" --> E["409 conflict"]
+    D -- "No" --> F["BCryptPasswordEncoder"]
+    F --> G["Guardar usuario con ROLE_USER"]
+    G --> H["Feign -> ms-notifications"]
+    H --> I["201 Created"]
+
+    J["POST /api/v1/auth/login"] --> K["AuthenticationManager"]
+    K --> L["JwtUtils"]
+    L --> M["JWT con userId y role"]
 ```
 
-## Endpoints
+## Contratos relevantes
 
-### Autenticacion
-
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/login`
-
-### Usuarios
-
-- `GET /api/v1/users`
-- `GET /api/v1/users/{id}`
-
-## Ejemplos Curl
-
-Registro:
+### Registro
 
 ```bash
 curl -X POST "http://localhost:8082/api/v1/auth/register" \
@@ -120,7 +145,7 @@ curl -X POST "http://localhost:8082/api/v1/auth/register" \
   }'
 ```
 
-Login:
+### Login
 
 ```bash
 curl -X POST "http://localhost:8082/api/v1/auth/login" \
@@ -131,14 +156,32 @@ curl -X POST "http://localhost:8082/api/v1/auth/login" \
   }'
 ```
 
-Consulta protegida:
+### Consulta interna para `transactions`
 
 ```bash
-curl -X GET "http://localhost:8082/api/v1/users" \
-  -H "Authorization: Bearer TU_TOKEN"
+curl -X GET "http://localhost:8082/api/v1/users/internal/25" \
+  -H "X-Internal-Api-Key: SHARED_KEY"
 ```
 
-## Formato De Error
+## Pruebas
+
+Desde [users/users](</C:/Users/marti/OneDrive/Desktop/BlockBuster Microservices/blockbuster-microservices/users/users>):
+
+```powershell
+mvn test
+mvn spring-boot:run
+```
+
+Cobertura actual validada:
+
+- DTOs y validaciones
+- mappers manuales
+- repositorios con Flyway + H2
+- servicios de registro y autenticacion
+- seguridad JWT y API key interna
+- controladores con MockMvc
+
+## Respuesta de error
 
 ```json
 {
