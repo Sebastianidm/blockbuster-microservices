@@ -10,6 +10,7 @@ import com.blockbuster.catalog.repository.CategoryRepository;
 import com.blockbuster.catalog.repository.MovieRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -97,17 +98,17 @@ public class MovieServiceImpl implements MovieService {
         log.info("Validando y descontando stock para la película ID: {} con cantidad: {}", movieId, quantity);
 
         if (quantity <= 0) {
-            throw new CatalogException("La cantidad a descontar debe ser mayor a cero");
+            throw new CatalogException("La cantidad a descontar debe ser mayor a cero", HttpStatus.BAD_REQUEST);
         }
 
         Movie movie = getMovieEntityById(movieId);
 
         if (!Boolean.TRUE.equals(movie.getAvailable())) {
-            throw new CatalogException("La película no está disponible para arriendo");
+            throw new CatalogException("La película no está disponible para arriendo", HttpStatus.CONFLICT);
         }
 
         if (movie.getStock() < quantity) {
-            throw new CatalogException("Stock insuficiente para la película con ID: " + movieId);
+            throw new CatalogException("Stock insuficiente para la película con ID: " + movieId, HttpStatus.CONFLICT);
         }
 
         int updatedStock = movie.getStock() - quantity;
@@ -122,11 +123,11 @@ public class MovieServiceImpl implements MovieService {
 
     private Movie getMovieEntityById(Long id) {
         return movieRepository.findById(id)
-                .orElseThrow(() -> new CatalogException("Película no encontrada con ID: " + id));
+                .orElseThrow(() -> new CatalogException("Película no encontrada con ID: " + id, HttpStatus.NOT_FOUND));
     }
 
     private Category getCategoryEntityById(Long id) {
         return categoryRepository.findById(id)
-                .orElseThrow(() -> new CatalogException("Categoría no encontrada con ID: " + id));
+                .orElseThrow(() -> new CatalogException("Categoría no encontrada con ID: " + id, HttpStatus.NOT_FOUND));
     }
 }

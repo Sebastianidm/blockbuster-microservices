@@ -8,6 +8,7 @@ import com.blockbuster.catalog.model.entity.Category;
 import com.blockbuster.catalog.repository.CategoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,7 +28,7 @@ public class CategoryServiceImpl implements CategoryService {
         log.info("Creando categoría con nombre: {}", request.getName());
 
         if (categoryRepository.existsByNameIgnoreCase(request.getName())) {
-            throw new CatalogException("Ya existe una categoría con el nombre: " + request.getName());
+            throw new CatalogException("Ya existe una categoría con el nombre: " + request.getName(), HttpStatus.CONFLICT);
         }
 
         Category category = categoryMapper.toEntity(request);
@@ -55,7 +56,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         if (!category.getName().equalsIgnoreCase(request.getName())
                 && categoryRepository.existsByNameIgnoreCase(request.getName())) {
-            throw new CatalogException("Ya existe una categoría con el nombre: " + request.getName());
+            throw new CatalogException("Ya existe una categoría con el nombre: " + request.getName(), HttpStatus.CONFLICT);
         }
 
         category.setName(request.getName());
@@ -73,6 +74,6 @@ public class CategoryServiceImpl implements CategoryService {
 
     private Category getCategoryEntityById(Long id) {
         return categoryRepository.findById(id)
-                .orElseThrow(() -> new CatalogException("Categoría no encontrada con ID: " + id));
+                .orElseThrow(() -> new CatalogException("Categoría no encontrada con ID: " + id, HttpStatus.NOT_FOUND));
     }
 }
