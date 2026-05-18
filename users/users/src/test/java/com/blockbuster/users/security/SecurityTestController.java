@@ -17,6 +17,11 @@ class SecurityTestController {
 		return "secured";
 	}
 
+	@GetMapping("/api/v1/users/internal/ping")
+	public String internalPing() {
+		return "internal";
+	}
+
 	@PreAuthorize("hasRole('ADMIN')")
 	@GetMapping("/api/v1/users/admin-ping")
 	public String adminPing() {

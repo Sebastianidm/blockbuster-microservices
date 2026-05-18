@@ -61,6 +61,11 @@ public class MovieController {
         return ResponseEntity.ok(movieService.checkAndDiscountStock(id, quantity));
     }
 
+    @PatchMapping("/{id}/stock/restore")
+    public ResponseEntity<MovieResponseDTO> restoreStock(@PathVariable Long id, @RequestParam int quantity) {
+        return ResponseEntity.ok(movieService.restoreMovieStock(id, quantity));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteMovie(@PathVariable Long id) {
         movieService.deleteMovie(id);

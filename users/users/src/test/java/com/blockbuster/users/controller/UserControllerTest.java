@@ -74,6 +74,24 @@ class UserControllerTest {
 	}
 
 	@Test
+	void shouldReturnInternalUserById() throws Exception {
+		UserResponseDTO userResponse = UserResponseDTO.builder()
+			.id(8L)
+			.username("cliente08")
+			.email("cliente08@blockbuster.com")
+			.createdAt(LocalDateTime.of(2026, 5, 17, 1, 0))
+			.role(RoleResponseDTO.builder().id(1L).name("ROLE_USER").build())
+			.build();
+
+		when(userService.getUserById(8L)).thenReturn(userResponse);
+
+		mockMvc.perform(get("/api/v1/users/internal/8"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.id").value(8))
+			.andExpect(jsonPath("$.email").value("cliente08@blockbuster.com"));
+	}
+
+	@Test
 	void shouldReturnNotFoundWhenUserDoesNotExist() throws Exception {
 		when(userService.getUserById(99L))
 			.thenThrow(new UserNotFoundException("No se encontro el usuario con id: 99"));

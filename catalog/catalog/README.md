@@ -1,38 +1,92 @@
 # ms-catalog
 
-Microservicio de catalogo para el sistema Blockbuster.
-
 Autor: Martin Caviedes
 
-## Descripcion
+`ms-catalog` administra categorias, peliculas y stock del sistema Blockbuster. Es el servicio que responde por el inventario logico del catalogo y expone la operacion interna que usa `transactions` para descontar unidades durante un arriendo.
 
-`ms-catalog` administra las categorias y peliculas del sistema. Expone endpoints REST para crear, consultar, actualizar y eliminar registros del catalogo, y ademas contiene la regla de negocio para validar y descontar stock cuando una pelicula se arrienda.
+## Vista rapida
 
-## Stack tecnico
+| Aspecto | Valor |
+| --- | --- |
+| Puerto | `8081` |
+| Base de datos | PostgreSQL Neon |
+| Seguridad externa | JWT Bearer |
+| Seguridad interna | API key compartida |
+| Integracion entrante | `transactions -> stock discount` |
+| Documentacion | `/swagger-ui.html` |
+
+## Stack real
 
 - Java 21
 - Spring Boot 4.0.6
 - Spring Data JPA
+- Spring Security
 - PostgreSQL
 - Flyway
 - Spring Validation
 - OpenFeign
 - Springdoc OpenAPI
-- JUnit 5
-- Mockito
-- MockMvc
+- JJWT
+- JUnit 5, Mockito, MockMvc
 
-## Estructura funcional
+## Que resuelve
 
-- `categories`: almacena categorias de peliculas.
-- `movies`: almacena peliculas, su categoria, anio de estreno, stock y disponibilidad.
-- `checkAndDiscountStock(...)`: valida existencia, disponibilidad y stock antes de descontar unidades.
+- CRUD de categorias
+- CRUD de peliculas
+- consultas por categoria, titulo y disponibilidad
+- validacion de stock y disponibilidad
+- descuento atomico de stock para arriendos
 
-## Modelo entidad-relacion
+## Seguridad
+
+### Endpoints publicos
+
+- `/swagger-ui.html`
+- `/v3/api-docs`
+
+### Endpoints protegidos por JWT
+
+- `POST /api/v1/categories`
+- `GET /api/v1/categories`
+- `GET /api/v1/categories/{id}`
+- `PUT /api/v1/categories/{id}`
+- `DELETE /api/v1/categories/{id}`
+- `POST /api/v1/movies`
+- `GET /api/v1/movies`
+- `GET /api/v1/movies/{id}`
+- `GET /api/v1/movies/category/{categoryId}`
+- `GET /api/v1/movies/search`
+- `GET /api/v1/movies/available`
+- `PUT /api/v1/movies/{id}`
+- `DELETE /api/v1/movies/{id}`
+
+### Endpoint interno protegido por API key
+
+- `PATCH /api/v1/movies/{id}/stock/discount?quantity=n`
+
+Este endpoint esta marcado `permitAll` en la cadena de seguridad solo para permitir la verificacion por `InternalApiKeyFilter`. No es un endpoint publico funcional sin la cabecera:
+
+```text
+X-Internal-Api-Key: <shared-key>
+```
+
+## Variables locales
+
+Crea un archivo `.env` en [catalog/catalog](</C:/Users/marti/OneDrive/Desktop/BlockBuster Microservices/blockbuster-microservices/catalog/catalog>) usando como base [.env.example](</C:/Users/marti/OneDrive/Desktop/BlockBuster Microservices/blockbuster-microservices/catalog/catalog/.env.example>):
+
+```properties
+DB_USERNAME=neondb_owner
+DB_PASSWORD=tu_password_aqui
+JWT_SECRET=replace_with_a_256_bit_secret
+JWT_EXPIRATION=86400000
+INTERNAL_API_KEY=replace_with_shared_internal_api_key
+```
+
+## Modelo
 
 ```mermaid
 erDiagram
-    CATEGORIES ||--o{ MOVIES : "contains"
+    CATEGORIES ||--o{ MOVIES : contains
 
     CATEGORIES {
         BIGINT id PK
@@ -50,49 +104,64 @@ erDiagram
     }
 ```
 
-## Flujo de descuento de stock
+## Flujo de stock
 
 ```mermaid
 flowchart TD
-    A["PATCH /api/v1/movies/{id}/stock/discount?quantity=n"] --> B["MovieService.checkAndDiscountStock(id, quantity)"]
-    B --> C{"quantity > 0?"}
-    C -- "No" --> X["CatalogException 400"]
-    C -- "Si" --> D["Buscar pelicula por id"]
-    D --> E{"Existe?"}
-    E -- "No" --> Y["CatalogException 404"]
-    E -- "Si" --> F{"available = true?"}
-    F -- "No" --> Z["CatalogException 409"]
-    F -- "Si" --> G{"stock >= quantity?"}
-    G -- "No" --> W["CatalogException 409"]
-    G -- "Si" --> H["stock = stock - quantity"]
-    H --> I{"stock restante > 0?"}
-    I -- "Si" --> J["available = true"]
-    I -- "No" --> K["available = false"]
-    J --> L["Guardar pelicula"]
-    K --> L
-    L --> M["Responder MovieResponseDTO"]
+    A["PATCH /api/v1/movies/{id}/stock/discount"] --> B["InternalApiKeyFilter"]
+    B --> C["MovieController"]
+    C --> D["MovieService.checkAndDiscountStock(...)"]
+    D --> E{"cantidad valida?"}
+    E -- "No" --> F["CatalogException 400"]
+    E -- "Si" --> G["Buscar pelicula"]
+    G --> H{"existe y esta disponible?"}
+    H -- "No" --> I["CatalogException 404/409"]
+    H -- "Si" --> J{"stock suficiente?"}
+    J -- "No" --> K["CatalogException 409"]
+    J -- "Si" --> L["Descontar stock"]
+    L --> M{"stock llega a 0?"}
+    M -- "Si" --> N["available = false"]
+    M -- "No" --> O["available = true"]
+    N --> P["Guardar y responder DTO"]
+    O --> P
 ```
 
-## Variables locales
+## Migraciones
 
-Crear un archivo `.env` en la raiz de este microservicio:
+Flyway aplica estas versiones:
 
-```properties
-DB_USERNAME=neondb_owner
-DB_PASSWORD=tu_password_real
+- `V1__create_initial_tables.sql`
+- `V2__insert_initial_data.sql`
+- `V3__add_audit_or_constraints.sql`
+
+## Contratos principales
+
+### Crear categoria
+
+```bash
+curl -X POST "http://localhost:8081/api/v1/categories" \
+  -H "Authorization: Bearer TU_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Drama","description":"Peliculas dramaticas"}'
 ```
 
-Tambien existe el archivo [.env.example](</C:/Users/marti/OneDrive/Desktop/BlockBuster Microservices/blockbuster-microservices/catalog/catalog/.env.example>) como referencia.
+### Crear pelicula
 
-## Configuracion principal
+```bash
+curl -X POST "http://localhost:8081/api/v1/movies" \
+  -H "Authorization: Bearer TU_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Inception","categoryId":3,"releaseYear":2010,"stock":6,"available":true}'
+```
 
-- Puerto: `8081`
-- Base de datos: Neon PostgreSQL
-- Flyway habilitado
-- Swagger UI: `/swagger-ui.html`
-- OpenAPI JSON: `/v3/api-docs`
+### Descuento interno de stock
 
-## Como ejecutar el proyecto
+```bash
+curl -X PATCH "http://localhost:8081/api/v1/movies/1/stock/discount?quantity=2" \
+  -H "X-Internal-Api-Key: SHARED_KEY"
+```
+
+## Ejecucion y pruebas
 
 Desde [catalog/catalog](</C:/Users/marti/OneDrive/Desktop/BlockBuster Microservices/blockbuster-microservices/catalog/catalog>):
 
@@ -101,92 +170,24 @@ mvn test
 mvn spring-boot:run
 ```
 
-La API quedara disponible en:
+La suite validada cubre:
 
-- `http://localhost:8081/api/v1/categories`
-- `http://localhost:8081/api/v1/movies`
-- `http://localhost:8081/swagger-ui.html`
+- arranque de contexto
+- Flyway + H2 en pruebas
+- mappers
+- repositorios
+- servicios
+- seguridad JWT
+- API key interna
+- controladores con MockMvc
 
-## Migraciones Flyway
-
-Las migraciones estan en [src/main/resources/db/migration](</C:/Users/marti/OneDrive/Desktop/BlockBuster Microservices/blockbuster-microservices/catalog/catalog/src/main/resources/db/migration>):
-
-- `V1__create_initial_tables.sql`
-- `V2__insert_initial_data.sql`
-- `V3__add_audit_or_constraints.sql`
-
-## Endpoints principales
-
-### Categorias
-
-- `POST /api/v1/categories`
-- `GET /api/v1/categories`
-- `GET /api/v1/categories/{id}`
-- `PUT /api/v1/categories/{id}`
-- `DELETE /api/v1/categories/{id}`
-
-### Peliculas
-
-- `POST /api/v1/movies`
-- `GET /api/v1/movies`
-- `GET /api/v1/movies/{id}`
-- `GET /api/v1/movies/category/{categoryId}`
-- `GET /api/v1/movies/search?title=matrix`
-- `GET /api/v1/movies/available`
-- `PUT /api/v1/movies/{id}`
-- `PATCH /api/v1/movies/{id}/stock/discount?quantity=1`
-- `DELETE /api/v1/movies/{id}`
-
-## Ejemplos de uso rapido
-
-Crear categoria:
-
-```bash
-curl -X POST http://localhost:8081/api/v1/categories \
-  -H "Content-Type: application/json" \
-  -d "{\"name\":\"Drama\",\"description\":\"Peliculas dramaticas\"}"
-```
-
-Crear pelicula:
-
-```bash
-curl -X POST http://localhost:8081/api/v1/movies \
-  -H "Content-Type: application/json" \
-  -d "{\"title\":\"Inception\",\"categoryId\":3,\"releaseYear\":2010,\"stock\":6,\"available\":true}"
-```
-
-Descontar stock:
-
-```bash
-curl -X PATCH "http://localhost:8081/api/v1/movies/1/stock/discount?quantity=2"
-```
-
-## Respuesta de error estandar
-
-El manejo global de errores responde con esta estructura:
+## Respuesta de error
 
 ```json
 {
-  "timestamp": "2026-05-16T22:00:00",
+  "timestamp": "2026-05-17T22:00:00",
   "status": 409,
   "message": "Stock insuficiente para la pelicula con ID: 1",
   "path": "/api/v1/movies/1/stock/discount"
 }
-```
-
-## Estado de pruebas
-
-La suite actual valida:
-
-- arranque del contexto
-- migraciones Flyway
-- mappers
-- repositorios
-- servicios
-- controladores con MockMvc
-
-Comando de verificacion:
-
-```powershell
-mvn test
 ```

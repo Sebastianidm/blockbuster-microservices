@@ -1,28 +1,34 @@
 package com.blockbuster.transactions.service;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.blockbuster.transactions.client.CatalogClient;
+import com.blockbuster.transactions.client.NotificationsClient;
+import com.blockbuster.transactions.client.UsersClient;
+import com.blockbuster.transactions.client.dto.NotificationClientRequest;
+import com.blockbuster.transactions.client.dto.UserClientResponse;
+import com.blockbuster.transactions.exception.TransactionException;
 import com.blockbuster.transactions.mapper.RentalMapper;
 import com.blockbuster.transactions.model.dto.RentalDetailRequestDTO;
 import com.blockbuster.transactions.model.dto.RentalRequestDTO;
 import com.blockbuster.transactions.model.dto.RentalResponseDTO;
 import com.blockbuster.transactions.model.entity.Rental;
 import com.blockbuster.transactions.model.entity.RentalDetail;
-import com.blockbuster.transactions.repository.RentalDetailRepository;
 import com.blockbuster.transactions.repository.RentalRepository;
-import com.blockbuster.transactions.client.CatalogClient;
-import com.blockbuster.transactions.client.UserClient;
-import com.blockbuster.transactions.client.dto.MovieClientDTO;
-import com.blockbuster.transactions.client.dto.UserClientDTO;
+
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -30,34 +36,22 @@ import java.util.stream.Collectors;
 public class RentalServiceImpl implements RentalService {
 
     private final RentalRepository rentalRepository;
-    private final RentalDetailRepository rentalDetailRepository;
     private final RentalMapper rentalMapper;
-
-    // Clientes Feign inyectados
+    private final UsersClient usersClient;
     private final CatalogClient catalogClient;
-    private final UserClient userClient;
+    private final NotificationsClient notificationsClient;
 
     private static final BigDecimal DAILY_RENTAL_PRICE = new BigDecimal("2500.00");
     private static final int RENTAL_DAYS_ALLOWED = 3;
 
     @Override
-    @Transactional // Si falla algo no se guarda nada en la bd ( esto es Rollback Martín :D )
+    @Transactional
     public RentalResponseDTO createRental(RentalRequestDTO request) {
-        log.info("Iniciando creación de arriendo para el usuario ID: {}", request.getUserId());
+        log.info("Iniciando creacion de arriendo para el usuario ID: {}", request.getUserId());
 
-        // 1. Validar vía Feign que el usuario existe en ms-users
-        try {
-            UserClientDTO user = userClient.getUserById(request.getUserId());
-            log.info("Usuario validado exitosamente por red: {}", user.getUsername());
-        } catch (FeignException.NotFound e) {
-            log.error("Bloqueo de negocio: El usuario ID {} no existe en ms-users", request.getUserId());
-            throw new RuntimeException("Usuario no encontrado en el sistema central.");
-        } catch (FeignException e) {
-            log.error("Error de comunicación con ms-users: {}", e.getMessage());
-            throw new RuntimeException("El servicio de usuarios está temporalmente fuera de línea.");
-        }
+        UserClientResponse user = validateUserExists(request.getUserId());
+        enforceRentalOwnershipForAuthenticatedUser(user);
 
-        // Crear la cabecera del arriendo
         Rental rental = Rental.builder()
                 .userId(request.getUserId())
                 .rentalDate(LocalDateTime.now())
@@ -69,26 +63,8 @@ public class RentalServiceImpl implements RentalService {
 
         BigDecimal totalAmount = BigDecimal.ZERO;
 
-        // Procesar cada película solicitada
         for (RentalDetailRequestDTO movieRequest : request.getMovies()) {
-
-            // 2. Validar vía Feign stock y disponibilidad en ms-catalog
-            try {
-                MovieClientDTO movie = catalogClient.getMovieById(movieRequest.getMovieId());
-
-                if (!movie.getAvailable() || movie.getStock() < movieRequest.getQuantity()) {
-                    log.error("Stock insuficiente para película: {}", movie.getTitle());
-                    throw new RuntimeException("Stock insuficiente para la película: " + movie.getTitle());
-                }
-                log.info("Película '{}' validada. Stock actual: {}", movie.getTitle(), movie.getStock());
-
-            } catch (FeignException.NotFound e) {
-                log.error("Película ID {} no existe en ms-catalog", movieRequest.getMovieId());
-                throw new RuntimeException("Película ID " + movieRequest.getMovieId() + " no existe en el catálogo.");
-            } catch (FeignException e) {
-                log.error("Error de comunicación con ms-catalog: {}", e.getMessage());
-                throw new RuntimeException("El servicio de catálogo está temporalmente fuera de línea.");
-            }
+            validateAndDiscountMovieStock(movieRequest.getMovieId(), movieRequest.getQuantity());
 
             RentalDetail detail = RentalDetail.builder()
                     .rental(rental)
@@ -99,45 +75,48 @@ public class RentalServiceImpl implements RentalService {
 
             rental.getDetails().add(detail);
 
-            // Calcular subtotal de esta película (precio * cantidad)
             BigDecimal subtotal = DAILY_RENTAL_PRICE.multiply(BigDecimal.valueOf(movieRequest.getQuantity()));
             totalAmount = totalAmount.add(subtotal);
         }
 
-        // Actualizar el monto total en la cabecera
         rental.setTotalAmount(totalAmount);
 
-        // Al guardar el Rental, gracias al CascadeType.ALL que pusimos en la entidad,
-        // los RentalDetails se guardarán automáticamente también.
         Rental savedRental = rentalRepository.save(rental);
+        sendRentalConfirmation(savedRental, user);
 
         log.info("Arriendo ID {} creado exitosamente con un total de ${}", savedRental.getId(), savedRental.getTotalAmount());
 
-        // Usamos el mapper para no devolver la entidad cruda
         return rentalMapper.toResponseDTO(savedRental);
     }
 
     @Override
     public List<RentalResponseDTO> getRentalsByUser(Long userId) {
-        List<Rental> rentals = rentalRepository.findByUserId(userId);
-        // Convertimos la lista de Entities a lista de DTOs
-        return rentals.stream()
+        return rentalRepository.findByUserId(userId).stream()
                 .map(rentalMapper::toResponseDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     public RentalResponseDTO getRentalById(Long id) {
-        Rental rental = getRentalEntityById(id);
-        return rentalMapper.toResponseDTO(rental);
+        return rentalMapper.toResponseDTO(getRentalEntityById(id));
     }
 
     @Override
     @Transactional
     public RentalResponseDTO returnRental(Long rentalId) {
         Rental rental = getRentalEntityById(rentalId);
+
+        if ("RETURNED".equalsIgnoreCase(rental.getStatus())) {
+            throw new TransactionException(HttpStatus.CONFLICT,
+                    "El arriendo con ID " + rentalId + " ya fue marcado como devuelto");
+        }
+
+        restoreMoviesToCatalog(rental);
         rental.setStatus("RETURNED");
         Rental updatedRental = rentalRepository.save(rental);
+
+        UserClientResponse user = validateUserExists(updatedRental.getUserId());
+        sendReturnConfirmation(updatedRental, user);
 
         return rentalMapper.toResponseDTO(updatedRental);
     }
@@ -153,15 +132,148 @@ public class RentalServiceImpl implements RentalService {
     @Transactional
     public void deleteRental(Long id) {
         Rental rental = getRentalEntityById(id);
-
-        //Eliminacion fisica para cumplir con rubrica de profe.
         rentalRepository.delete(rental);
         log.info("Arriendo ID {} eliminado de la base de datos", id);
     }
 
-    // Método privado auxiliar para buscar en la base de datos (retorna la Entidad para uso interno)
     private Rental getRentalEntityById(Long id) {
         return rentalRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Arriendo no encontrado con ID: " + id));
+                .orElseThrow(() -> new TransactionException(HttpStatus.NOT_FOUND,
+                        "No existe un arriendo con ID: " + id));
+    }
+
+    private UserClientResponse validateUserExists(Long userId) {
+        try {
+            return usersClient.getUserById(userId);
+        } catch (FeignException.NotFound ex) {
+            throw new TransactionException(HttpStatus.NOT_FOUND, "No existe un usuario con ID: " + userId);
+        } catch (FeignException ex) {
+            log.error("Error al validar usuario {} en ms-users. Status: {} Body: {}",
+                    userId, ex.status(), ex.contentUTF8(), ex);
+            throw new TransactionException(HttpStatus.BAD_GATEWAY, "No fue posible validar el usuario en ms-users");
+        }
+    }
+
+    private void validateAndDiscountMovieStock(Long movieId, Integer quantity) {
+        try {
+            catalogClient.checkAndDiscountStock(movieId, quantity);
+        } catch (FeignException.NotFound ex) {
+            throw new TransactionException(HttpStatus.NOT_FOUND, "No existe una pelicula con ID: " + movieId);
+        } catch (FeignException.BadRequest | FeignException.Conflict ex) {
+            throw new TransactionException(HttpStatus.CONFLICT,
+                    "No hay stock suficiente o la pelicula no esta disponible para el ID: " + movieId);
+        } catch (FeignException.Unauthorized | FeignException.Forbidden ex) {
+            log.error("Autenticacion interna rechazada por ms-catalog para movieId {}. Status: {} Body: {}",
+                    movieId, ex.status(), ex.contentUTF8(), ex);
+            throw new TransactionException(HttpStatus.BAD_GATEWAY,
+                    "La autenticacion interna contra ms-catalog fue rechazada. Verifica INTERNAL_API_KEY");
+        } catch (FeignException ex) {
+            log.error("Error al validar stock en ms-catalog para movieId {} y quantity {}. Status: {} Body: {}",
+                    movieId, quantity, ex.status(), ex.contentUTF8(), ex);
+            throw new TransactionException(HttpStatus.BAD_GATEWAY, "No fue posible validar el stock en ms-catalog");
+        }
+    }
+
+    private void restoreMoviesToCatalog(Rental rental) {
+        if (rental.getDetails() == null || rental.getDetails().isEmpty()) {
+            return;
+        }
+
+        for (RentalDetail detail : rental.getDetails()) {
+            try {
+                catalogClient.restoreStock(detail.getMovieId(), detail.getQuantity());
+            } catch (FeignException.NotFound ex) {
+                throw new TransactionException(HttpStatus.NOT_FOUND,
+                        "No existe una pelicula con ID: " + detail.getMovieId());
+            } catch (FeignException.BadRequest ex) {
+                throw new TransactionException(HttpStatus.BAD_REQUEST,
+                        "La cantidad a reintegrar es invalida para la pelicula con ID: " + detail.getMovieId());
+            } catch (FeignException.Unauthorized | FeignException.Forbidden ex) {
+                log.error("Autenticacion interna rechazada por ms-catalog al reintegrar stock para movieId {}. Status: {} Body: {}",
+                        detail.getMovieId(), ex.status(), ex.contentUTF8(), ex);
+                throw new TransactionException(HttpStatus.BAD_GATEWAY,
+                        "La autenticacion interna contra ms-catalog fue rechazada al reintegrar stock");
+            } catch (FeignException ex) {
+                log.error("Error al reintegrar stock en ms-catalog para movieId {} y quantity {}. Status: {} Body: {}",
+                        detail.getMovieId(), detail.getQuantity(), ex.status(), ex.contentUTF8(), ex);
+                throw new TransactionException(HttpStatus.BAD_GATEWAY,
+                        "No fue posible reintegrar el stock en ms-catalog");
+            }
+        }
+    }
+
+    private void enforceRentalOwnershipForAuthenticatedUser(UserClientResponse user) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || authentication.getAuthorities() == null) {
+            return;
+        }
+
+        boolean isPlainUser = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_USER".equals(authority.getAuthority()));
+
+        if (!isPlainUser) {
+            return;
+        }
+
+        String authenticatedUsername = authentication.getName();
+        if (authenticatedUsername != null && authenticatedUsername.equals(user.getUsername())) {
+            return;
+        }
+
+        throw new TransactionException(HttpStatus.FORBIDDEN,
+                "Un usuario cliente solo puede crear arriendos para su propia cuenta");
+    }
+
+    private void sendRentalConfirmation(Rental rental, UserClientResponse user) {
+        NotificationClientRequest notificationRequest = NotificationClientRequest.builder()
+                .userId(user.getId())
+                .recipientEmail(user.getEmail())
+                .subject("Confirmacion de arriendo Blockbuster")
+                .message(buildRentalMessage(rental))
+                .type("RENTAL_CONFIRMATION")
+                .build();
+
+        try {
+            notificationsClient.sendNotification(notificationRequest);
+        } catch (RuntimeException ex) {
+            log.warn("No se pudo enviar la confirmacion del arriendo {} al usuario {}", rental.getId(), user.getId(), ex);
+        }
+    }
+
+    private void sendReturnConfirmation(Rental rental, UserClientResponse user) {
+        NotificationClientRequest notificationRequest = NotificationClientRequest.builder()
+                .userId(user.getId())
+                .recipientEmail(user.getEmail())
+                .subject("Confirmacion de devolucion Blockbuster")
+                .message(buildReturnMessage(rental))
+                .type("RENTAL_RETURN")
+                .build();
+
+        try {
+            notificationsClient.sendNotification(notificationRequest);
+        } catch (RuntimeException ex) {
+            log.warn("No se pudo enviar la confirmacion de devolucion del arriendo {} al usuario {}",
+                    rental.getId(), user.getId(), ex);
+        }
+    }
+
+    private String buildRentalMessage(Rental rental) {
+        int totalMovies = rental.getDetails() == null ? 0 : rental.getDetails().stream()
+                .mapToInt(RentalDetail::getQuantity)
+                .sum();
+
+        return "Tu arriendo #" + rental.getId()
+                + " fue creado con exito. Total peliculas: " + totalMovies
+                + ". Monto total: $" + rental.getTotalAmount() + ".";
+    }
+
+    private String buildReturnMessage(Rental rental) {
+        int totalMovies = rental.getDetails() == null ? 0 : rental.getDetails().stream()
+                .mapToInt(RentalDetail::getQuantity)
+                .sum();
+
+        return "Tu arriendo #" + rental.getId()
+                + " fue marcado como devuelto. Total peliculas reintegradas: " + totalMovies + ".";
     }
 }

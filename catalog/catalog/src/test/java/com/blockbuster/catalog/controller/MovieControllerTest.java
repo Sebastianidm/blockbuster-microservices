@@ -3,9 +3,11 @@ package com.blockbuster.catalog.controller;
 import com.blockbuster.catalog.exception.CatalogException;
 import com.blockbuster.catalog.exception.GlobalExceptionHandler;
 import com.blockbuster.catalog.model.dto.MovieResponseDTO;
+import com.blockbuster.catalog.security.JwtAuthenticationFilter;
 import com.blockbuster.catalog.service.MovieService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
@@ -26,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(MovieController.class)
+@AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class MovieControllerTest {
 
@@ -34,6 +37,9 @@ class MovieControllerTest {
 
     @MockitoBean
     private MovieService movieService;
+
+    @MockitoBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Test
     void shouldCreateMovieSuccessfully() throws Exception {
@@ -95,6 +101,25 @@ class MovieControllerTest {
                         .param("quantity", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.stock").value(3))
+                .andExpect(jsonPath("$.available").value(true));
+    }
+
+    @Test
+    void shouldRestoreMovieStockSuccessfully() throws Exception {
+        when(movieService.restoreMovieStock(7L, 2)).thenReturn(MovieResponseDTO.builder()
+                .id(7L)
+                .title("Mad Max")
+                .categoryId(1L)
+                .categoryName("Action")
+                .releaseYear(2015)
+                .stock(5)
+                .available(true)
+                .build());
+
+        mockMvc.perform(patch("/api/v1/movies/7/stock/restore")
+                        .param("quantity", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stock").value(5))
                 .andExpect(jsonPath("$.available").value(true));
     }
 

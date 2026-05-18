@@ -24,4 +24,6 @@ public interface MovieService {
     void deleteMovie(Long id);
 
     MovieResponseDTO checkAndDiscountStock(Long movieId, int quantity);
+
+    MovieResponseDTO restoreMovieStock(Long movieId, int quantity);
 }
