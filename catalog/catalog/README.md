@@ -1,50 +1,47 @@
 # ms-catalog
 
-Autor: Martin Caviedes
+`ms-catalog` administra categorias, peliculas, disponibilidad y stock del sistema. Es el servicio duenio del inventario y expone tanto endpoints de consumo externo como operaciones internas para que `ms-transactions` pueda descontar y restaurar stock durante arriendos y devoluciones.
 
-`ms-catalog` administra categorias, peliculas y stock del sistema Blockbuster. Es el servicio que responde por el inventario logico del catalogo y expone la operacion interna que usa `transactions` para descontar unidades durante un arriendo.
+## Contexto dentro del sistema
+
+Este microservicio responde por:
+
+- estructura del catalogo
+- clasificacion por categorias
+- consulta de peliculas
+- disponibilidad para arriendo
+- mutaciones de stock bajo reglas controladas
+
+No autentica usuarios ni crea arriendos. Su foco es inventario.
 
 ## Vista rapida
 
 | Aspecto | Valor |
 | --- | --- |
 | Puerto | `8081` |
-| Base de datos | PostgreSQL Neon |
+| Persistencia | PostgreSQL |
 | Seguridad externa | JWT Bearer |
 | Seguridad interna | API key compartida |
-| Integracion entrante | `transactions -> stock discount` |
-| Documentacion | `/swagger-ui.html` |
+| Integracion entrante | `ms-transactions` |
+| UI OpenAPI | `/swagger-ui.html` |
 
-## Stack real
-
-- Java 21
-- Spring Boot 4.0.6
-- Spring Data JPA
-- Spring Security
-- PostgreSQL
-- Flyway
-- Spring Validation
-- OpenFeign
-- Springdoc OpenAPI
-- JJWT
-- JUnit 5, Mockito, MockMvc
-
-## Que resuelve
+## Responsabilidades
 
 - CRUD de categorias
 - CRUD de peliculas
-- consultas por categoria, titulo y disponibilidad
-- validacion de stock y disponibilidad
-- descuento atomico de stock para arriendos
+- consulta por categoria, titulo y disponibilidad
+- validacion de stock
+- descuento interno de stock
+- reintegro interno de stock
 
-## Seguridad
+## Endpoints principales
 
-### Endpoints publicos
+### Publicos
 
 - `/swagger-ui.html`
 - `/v3/api-docs`
 
-### Endpoints protegidos por JWT
+### Protegidos por JWT
 
 - `POST /api/v1/categories`
 - `GET /api/v1/categories`
@@ -60,29 +57,46 @@ Autor: Martin Caviedes
 - `PUT /api/v1/movies/{id}`
 - `DELETE /api/v1/movies/{id}`
 
-### Endpoint interno protegido por API key
+### Internos protegidos por API key
 
 - `PATCH /api/v1/movies/{id}/stock/discount?quantity=n`
+- `PATCH /api/v1/movies/{id}/stock/restore?quantity=n`
 
-Este endpoint esta marcado `permitAll` en la cadena de seguridad solo para permitir la verificacion por `InternalApiKeyFilter`. No es un endpoint publico funcional sin la cabecera:
+Estos endpoints existen para integracion entre microservicios. No son endpoints de cliente final.
+
+## Seguridad
+
+Los endpoints internos estan expuestos en la cadena de seguridad solo para que `InternalApiKeyFilter` valide:
 
 ```text
 X-Internal-Api-Key: <shared-key>
 ```
 
-## Variables locales
+Sin esa cabecera valida, la operacion debe ser rechazada.
 
-Crea un archivo `.env` en [catalog/catalog](</C:/Users/marti/OneDrive/Desktop/BlockBuster Microservices/blockbuster-microservices/catalog/catalog>) usando como base [.env.example](</C:/Users/marti/OneDrive/Desktop/BlockBuster Microservices/blockbuster-microservices/catalog/catalog/.env.example>):
+## Variables de entorno
+
+Crear un archivo `.env` en este modulo usando como base [.env.example](./.env.example).
+
+Variables esperadas:
 
 ```properties
 DB_USERNAME=neondb_owner
-DB_PASSWORD=tu_password_aqui
+DB_PASSWORD=replace_with_real_password
 JWT_SECRET=replace_with_a_256_bit_secret
 JWT_EXPIRATION=86400000
 INTERNAL_API_KEY=replace_with_shared_internal_api_key
 ```
 
-## Modelo
+## Persistencia y migraciones
+
+Flyway aplica:
+
+- `V1__create_initial_tables.sql`
+- `V2__insert_initial_data.sql`
+- `V3__add_audit_or_constraints.sql`
+
+### Modelo relacional
 
 ```mermaid
 erDiagram
@@ -104,37 +118,21 @@ erDiagram
     }
 ```
 
-## Flujo de stock
+## Flujo interno de stock
 
 ```mermaid
 flowchart TD
-    A["PATCH /api/v1/movies/{id}/stock/discount"] --> B["InternalApiKeyFilter"]
+    A["PATCH stock/discount o stock/restore"] --> B["InternalApiKeyFilter"]
     B --> C["MovieController"]
-    C --> D["MovieService.checkAndDiscountStock(...)"]
-    D --> E{"cantidad valida?"}
-    E -- "No" --> F["CatalogException 400"]
-    E -- "Si" --> G["Buscar pelicula"]
-    G --> H{"existe y esta disponible?"}
-    H -- "No" --> I["CatalogException 404/409"]
-    H -- "Si" --> J{"stock suficiente?"}
-    J -- "No" --> K["CatalogException 409"]
-    J -- "Si" --> L["Descontar stock"]
-    L --> M{"stock llega a 0?"}
-    M -- "Si" --> N["available = false"]
-    M -- "No" --> O["available = true"]
-    N --> P["Guardar y responder DTO"]
-    O --> P
+    C --> D["MovieServiceImpl"]
+    D --> E{"pelicula valida?"}
+    E -- "No" --> F["404 o 409"]
+    E -- "Si" --> G["Actualizar stock"]
+    G --> H["Recalcular available"]
+    H --> I["Guardar y responder DTO"]
 ```
 
-## Migraciones
-
-Flyway aplica estas versiones:
-
-- `V1__create_initial_tables.sql`
-- `V2__insert_initial_data.sql`
-- `V3__add_audit_or_constraints.sql`
-
-## Contratos principales
+## Ejemplos de uso
 
 ### Crear categoria
 
@@ -161,27 +159,34 @@ curl -X PATCH "http://localhost:8081/api/v1/movies/1/stock/discount?quantity=2" 
   -H "X-Internal-Api-Key: SHARED_KEY"
 ```
 
-## Ejecucion y pruebas
+### Reintegro interno de stock
 
-Desde [catalog/catalog](</C:/Users/marti/OneDrive/Desktop/BlockBuster Microservices/blockbuster-microservices/catalog/catalog>):
+```bash
+curl -X PATCH "http://localhost:8081/api/v1/movies/1/stock/restore?quantity=2" \
+  -H "X-Internal-Api-Key: SHARED_KEY"
+```
+
+## Ejecucion
+
+Desde este modulo:
 
 ```powershell
 mvn test
 mvn spring-boot:run
 ```
 
-La suite validada cubre:
+## Cobertura funcional validada
 
-- arranque de contexto
-- Flyway + H2 en pruebas
+- arranque del contexto
+- migraciones Flyway en pruebas
 - mappers
 - repositorios
 - servicios
 - seguridad JWT
-- API key interna
+- seguridad interna por API key
 - controladores con MockMvc
 
-## Respuesta de error
+## Formato de error
 
 ```json
 {
@@ -191,3 +196,8 @@ La suite validada cubre:
   "path": "/api/v1/movies/1/stock/discount"
 }
 ```
+
+## Navegacion
+
+- [README principal](../../README.md)
+- [Coleccion Postman](../../docs/postman/README.md)

@@ -1,65 +1,63 @@
 # ms-notifications
 
-Autor: Martin Caviedes
+`ms-notifications` registra y simula el envio de notificaciones internas del sistema. Recibe solicitudes desde otros microservicios, persiste el evento en MongoDB y responde con estado `SENT`, manteniendo trazabilidad del flujo sin asumir reglas de negocio ajenas.
 
-`ms-notifications` centraliza el registro y envio simulado de notificaciones para Blockbuster. El servicio recibe solicitudes internas desde otros microservicios, persiste el evento en MongoDB Atlas y devuelve el resultado con estado `SENT`.
+## Contexto dentro del sistema
+
+Este microservicio participa como servicio transversal. No autentica usuarios finales ni decide arriendos, stock o identidad. Su responsabilidad es persistir eventos de notificacion generados por otros dominios.
 
 ## Vista rapida
 
 | Aspecto | Valor |
 | --- | --- |
 | Puerto | `8084` |
-| Base de datos | MongoDB Atlas |
-| Seguridad externa | No expone endpoints de usuario final |
+| Persistencia | MongoDB |
+| Seguridad externa | no expone flujo de cliente final |
 | Seguridad interna | API key compartida |
-| Integracion entrante | `ms-users` y `ms-transactions` |
-| Documentacion | `/swagger-ui.html` |
+| Integraciones entrantes | `ms-users` y `ms-transactions` |
+| UI OpenAPI | `/swagger-ui.html` |
 
-## Stack real
+## Responsabilidades
 
-- Java 21
-- Spring Boot 4.0.6
-- Spring Data MongoDB
-- Spring Validation
-- Springdoc OpenAPI
-- OpenFeign
-- JUnit 5, Mockito, MockMvc
+- registrar notificaciones de bienvenida
+- registrar confirmaciones de arriendo
+- registrar confirmaciones de devolucion
+- persistir historico de mensajes
+- responder con estado uniforme al flujo interno
 
-## Que resuelve
+## Endpoints principales
 
-- recepcion de correos internos de bienvenida
-- recepcion de confirmaciones de arriendo
-- recepcion de confirmaciones de devolucion
-- persistencia historica de notificaciones
-- respuesta uniforme de errores para validacion y autenticacion interna
-
-## Seguridad
-
-### Endpoints publicos
+### Publicos
 
 - `/swagger-ui.html`
 - `/v3/api-docs`
 
-### Endpoint interno protegido por API key
+### Interno protegido por API key
 
 - `POST /api/v1/notifications`
 
-La invocacion debe incluir:
+Toda invocacion valida debe incluir:
 
 ```text
 X-Internal-Api-Key: <shared-key>
 ```
 
-## Variables locales
+## Variables de entorno
 
-Crea un archivo `.env` en [notifications/notifications](</C:/Users/marti/OneDrive/Desktop/BlockBuster Microservices/blockbuster-microservices/notifications/notifications>) usando como base [notifications/notifications/.env.example](</C:/Users/marti/OneDrive/Desktop/BlockBuster Microservices/blockbuster-microservices/notifications/notifications/.env.example>):
+Crear un archivo `.env` en este modulo usando como base [.env.example](./.env.example).
+
+Variables esperadas:
 
 ```properties
 MONGO_PASSWORD=replace_with_real_mongo_password
 INTERNAL_API_KEY=replace_with_shared_internal_api_key
 ```
 
-## Modelo
+## Persistencia
+
+`ms-notifications` utiliza MongoDB porque el dato persistido es un evento autocontenido, sin relaciones complejas ni necesidad de joins estructurales.
+
+### Modelo documental
 
 ```mermaid
 erDiagram
@@ -84,7 +82,7 @@ flowchart TD
     C --> D["NotificationServiceImpl"]
     D --> E["Mapear DTO a documento"]
     E --> F["Asignar status = SENT"]
-    F --> G["Guardar en MongoDB"]
+    F --> G["Persistir en MongoDB"]
     G --> H["201 Created"]
 ```
 
@@ -94,7 +92,7 @@ flowchart TD
 - `RENTAL_CONFIRMATION`
 - `RENTAL_RETURN`
 
-## Contrato principal
+## Ejemplo de uso
 
 ```bash
 curl -X POST "http://localhost:8084/api/v1/notifications" \
@@ -109,23 +107,23 @@ curl -X POST "http://localhost:8084/api/v1/notifications" \
   }'
 ```
 
-## Ejecucion y pruebas
+## Ejecucion
 
-Desde [notifications/notifications](</C:/Users/marti/OneDrive/Desktop/BlockBuster Microservices/blockbuster-microservices/notifications/notifications>):
+Desde este modulo:
 
 ```powershell
 mvn test
 mvn spring-boot:run
 ```
 
-Cobertura validada:
+## Cobertura funcional validada
 
 - rechazo de solicitudes sin API key
 - aceptacion de solicitudes internas validas
-- validaciones de payload
-- respuesta de error uniforme
+- validacion de payload
+- respuesta uniforme de error
 
-## Respuesta de error
+## Formato de error
 
 ```json
 {
@@ -135,3 +133,8 @@ Cobertura validada:
   "path": "/api/v1/notifications"
 }
 ```
+
+## Navegacion
+
+- [README principal](../../README.md)
+- [Coleccion Postman](../../docs/postman/README.md)

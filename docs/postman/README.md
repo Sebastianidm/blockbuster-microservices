@@ -1,24 +1,24 @@
 # Postman Local
 
-Esta carpeta contiene una coleccion y un environment para validar localmente los 4 microservicios del proyecto Blockbuster:
+Esta carpeta contiene la coleccion y el environment necesarios para validar localmente el flujo integrado de los cuatro microservicios del proyecto:
 
-- `ms-catalog`
 - `ms-users`
+- `ms-catalog`
 - `ms-transactions`
 - `ms-notifications`
 
 ## Archivos
 
-- `Blockbuster-system-integration.postman_collection.json`
-- `Blockbuster-local.postman_environment.json`
+- [Collection](./Blockbuster-system-integration.postman_collection.json)
+- [Environment local](./Blockbuster-local.postman_environment.json)
 
-## Orden de uso
+## Uso recomendado
 
-1. Importa ambos archivos en Postman.
-2. Selecciona el environment `Blockbuster Local`.
-3. Ajusta el valor de `internal_api_key` para que coincida con tus `.env`.
-4. Levanta localmente los 4 microservicios.
-5. Ejecuta las carpetas en este orden:
+1. Importar ambos archivos en Postman.
+2. Seleccionar el environment `Blockbuster Local`.
+3. Verificar que `internal_api_key` coincida con la configuracion local.
+4. Levantar localmente los cuatro microservicios.
+5. Ejecutar las carpetas en este orden:
    - `01 Auth`
    - `02 Users`
    - `03 Catalog`
@@ -44,12 +44,12 @@ La coleccion guarda automaticamente:
 - `movie_id`
 - `rental_id`
 
-## Flujo cubierto
+## Flujos cubiertos
 
 - login de administrador semilla
 - registro de usuario demo
 - login de usuario demo
-- consulta de usuarios protegida
+- consulta protegida de usuarios
 - consulta interna por API key
 - creacion de categoria y pelicula
 - consulta de catalogo
@@ -62,3 +62,11 @@ La coleccion guarda automaticamente:
 - devolucion del arriendo por `PATCH`
 - eliminacion administrativa del arriendo
 - pruebas negativas de JWT y API key
+
+## Navegacion
+
+- [README principal](../../README.md)
+- [ms-users](../../users/users/README.md)
+- [ms-catalog](../../catalog/catalog/README.md)
+- [ms-transactions](../../transactions/transactions/README.md)
+- [ms-notifications](../../notifications/notifications/README.md)
