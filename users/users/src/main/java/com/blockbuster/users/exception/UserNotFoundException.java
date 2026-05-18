@@ -1,0 +1,10 @@
+package com.blockbuster.users.exception;
+
+import org.springframework.http.HttpStatus;
+
+public class UserNotFoundException extends UsersException {
+
+	public UserNotFoundException(String message) {
+		super(message, HttpStatus.NOT_FOUND);
+	}
+}

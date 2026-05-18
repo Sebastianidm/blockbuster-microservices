@@ -1,0 +1,694 @@
+{
+  "info": {
+    "_postman_id": "3fd7b04d-35e6-4102-91a6-d17139f780e3",
+    "name": "Blockbuster System Integration",
+    "description": "Coleccion local para validar ms-users, ms-catalog, ms-transactions y ms-notifications con JWT y API key interna.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 Auth",
+      "item": [
+        {
+          "name": "Login admin semilla",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"admin_token\", data.token);",
+                  "pm.environment.set(\"admin_user_id\", String(data.userId));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{seed_admin_username}}\",\n  \"password\": \"{{seed_admin_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{users_url}}/api/v1/auth/login",
+              "host": [
+                "{{users_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Registrar usuario demo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"user_id\", String(data.id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{demo_user_username}}\",\n  \"email\": \"{{demo_user_email}}\",\n  \"password\": \"{{demo_user_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{users_url}}/api/v1/auth/register",
+              "host": [
+                "{{users_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login usuario demo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"user_token\", data.token);",
+                  "pm.environment.set(\"user_id\", String(data.userId));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{demo_user_username}}\",\n  \"password\": \"{{demo_user_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{users_url}}/api/v1/auth/login",
+              "host": [
+                "{{users_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Users",
+      "item": [
+        {
+          "name": "Listar usuarios",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{users_url}}/api/v1/users",
+              "host": [
+                "{{users_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Consultar usuario interno por API key",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Api-Key",
+                "value": "{{internal_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{users_url}}/api/v1/users/internal/{{user_id}}",
+              "host": [
+                "{{users_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "internal",
+                "{{user_id}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Catalog",
+      "item": [
+        {
+          "name": "Crear categoria demo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"category_id\", String(data.id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{demo_category_name}}\",\n  \"description\": \"Categoria de prueba para interoperabilidad\"\n}"
+            },
+            "url": {
+              "raw": "{{catalog_url}}/api/v1/categories",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "categories"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Crear pelicula demo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"movie_id\", String(data.id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{demo_movie_title}}\",\n  \"categoryId\": {{category_id}},\n  \"releaseYear\": 1999,\n  \"stock\": 3,\n  \"available\": true\n}"
+            },
+            "url": {
+              "raw": "{{catalog_url}}/api/v1/movies",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "movies"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar peliculas disponibles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/v1/movies/available",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "movies",
+                "available"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Descuento interno de stock",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Internal-Api-Key",
+                "value": "{{internal_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/v1/movies/{{movie_id}}/stock/discount?quantity=1",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "movies",
+                "{{movie_id}}",
+                "stock",
+                "discount"
+              ],
+              "query": [
+                {
+                  "key": "quantity",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reingreso interno de stock",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Internal-Api-Key",
+                "value": "{{internal_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/api/v1/movies/{{movie_id}}/stock/restore?quantity=1",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "movies",
+                "{{movie_id}}",
+                "stock",
+                "restore"
+              ],
+              "query": [
+                {
+                  "key": "quantity",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Notifications",
+      "item": [
+        {
+          "name": "Enviar notificacion manual",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Internal-Api-Key",
+                "value": "{{internal_api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{user_id}},\n  \"recipientEmail\": \"{{demo_user_email}}\",\n  \"subject\": \"Prueba manual\",\n  \"message\": \"Validacion manual de notifications\",\n  \"type\": \"USER_REGISTRATION\"\n}"
+            },
+            "url": {
+              "raw": "{{notifications_url}}/api/v1/notifications",
+              "host": [
+                "{{notifications_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Transactions",
+      "item": [
+        {
+          "name": "Crear arriendo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"rental_id\", String(data.id));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{user_id}},\n  \"movies\": [\n    {\n      \"movieId\": {{movie_id}},\n      \"quantity\": 1\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{transactions_url}}/api/v1/rentals",
+              "host": [
+                "{{transactions_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rentals"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar arriendos por usuario",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{transactions_url}}/api/v1/rentals/user/{{user_id}}",
+              "host": [
+                "{{transactions_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rentals",
+                "user",
+                "{{user_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar todos los arriendos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{transactions_url}}/api/v1/rentals",
+              "host": [
+                "{{transactions_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rentals"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Devolver arriendo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{transactions_url}}/api/v1/rentals/{{rental_id}}/return",
+              "host": [
+                "{{transactions_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rentals",
+                "{{rental_id}}",
+                "return"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Eliminar arriendo",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{transactions_url}}/api/v1/rentals/{{rental_id}}",
+              "host": [
+                "{{transactions_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rentals",
+                "{{rental_id}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Negative Tests",
+      "item": [
+        {
+          "name": "Users sin rol admin",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{users_url}}/api/v1/users",
+              "host": [
+                "{{users_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Catalog interno sin API key",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{catalog_url}}/api/v1/movies/{{movie_id}}/stock/discount?quantity=1",
+              "host": [
+                "{{catalog_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "movies",
+                "{{movie_id}}",
+                "stock",
+                "discount"
+              ],
+              "query": [
+                {
+                  "key": "quantity",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Transactions con userId ajeno",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 999999,\n  \"movies\": [\n    {\n      \"movieId\": {{movie_id}},\n      \"quantity\": 1\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{transactions_url}}/api/v1/rentals",
+              "host": [
+                "{{transactions_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rentals"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Notifications sin API key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{user_id}},\n  \"recipientEmail\": \"{{demo_user_email}}\",\n  \"subject\": \"Prueba invalida\",\n  \"message\": \"Debe responder 401\",\n  \"type\": \"USER_REGISTRATION\"\n}"
+            },
+            "url": {
+              "raw": "{{notifications_url}}/api/v1/notifications",
+              "host": [
+                "{{notifications_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
