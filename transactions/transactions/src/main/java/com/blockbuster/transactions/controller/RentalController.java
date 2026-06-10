@@ -41,7 +41,7 @@ public class RentalController {
     // GET: http://localhost:8083/api/v1/rentals/user/1
     @Operation(summary = "Historial por usuario", description = "Obtiene todo el historial de arriendos de un usuario especifico.")
     @ApiResponse(responseCode = "200", description = "Historial recuperado exitosamente")
-    @PreAuthorize("hasAnyRole('EMPLOYEE','ADMIN')")
+    @PreAuthorize("hasAnyRole('USER','EMPLOYEE','ADMIN')")
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<RentalResponseDTO>> getRentalsByUser(@PathVariable Long userId) {
         List<RentalResponseDTO> rentals = rentalService.getRentalsByUser(userId);

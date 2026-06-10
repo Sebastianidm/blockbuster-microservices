@@ -1,0 +1,3 @@
+### Prueba de descarte directa al servicio
+GET http://localhost:8083/api/v1/rentals/user/7
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiUk9MRV9VU0VSIiwidXNlcklkIjo3LCJzdWIiOiJzZWJhIiwiaWF0IjoxNzgxMDYwMTUyLCJleHAiOjE3ODExNDY1NTJ9.98I8oBewxZO4AxoNFwWSaak3wLWQMwN458JJRkg9Iaw
