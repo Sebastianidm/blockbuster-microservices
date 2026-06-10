@@ -45,7 +45,8 @@ Este microservicio no es duenio de usuarios ni de peliculas. Su responsabilidad 
 
 - `ROLE_USER`, `ROLE_EMPLOYEE` y `ROLE_ADMIN` pueden crear arriendos
 - `ROLE_USER` solo puede crear arriendos para su propia cuenta
-- `ROLE_EMPLOYEE` y `ROLE_ADMIN` pueden consultar, devolver y eliminar arriendos
+- `ROLE_USER`, `ROLE_EMPLOYEE` y `ROLE_ADMIN` pueden consultar el historial de arriendos por usuario (`GET /api/v1/rentals/user/{userId}`)
+- `ROLE_EMPLOYEE` y `ROLE_ADMIN` pueden consultar todos los arriendos globales, devolver y eliminar arriendos
 
 La operacion canonica de devolucion es `PATCH`. Se conserva compatibilidad con `PUT` por razones de transicion del contrato.
 

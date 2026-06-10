@@ -28,12 +28,20 @@ El repositorio demuestra:
 ## Arquitectura general
 
 ```mermaid
-flowchart LR
-    Client["Cliente REST"] --> Users["ms-users :8082"]
-    Client --> Catalog["ms-catalog :8081"]
-    Client --> Transactions["ms-transactions :8083"]
+flowchart TD
+    Client["Cliente REST"] --> Gateway["api-gateway :8080"]
+    Gateway -->|Enrutamiento dinámico lb:// + TokenRelay| Users["ms-users :8082"]
+    Gateway -->|Enrutamiento dinámico lb:// + TokenRelay| Catalog["ms-catalog :8081"]
+    Gateway -->|Enrutamiento dinámico lb:// + TokenRelay| Transactions["ms-transactions :8083"]
+    Gateway -->|Enrutamiento dinámico lb:// + TokenRelay| Notifications["ms-notifications :8084"]
 
-    Users -->|Feign + API key| Notifications["ms-notifications :8084"]
+    Users -.->|Registro y Descubrimiento| Eureka["eureka-server :8761"]
+    Catalog -.->|Registro y Descubrimiento| Eureka
+    Transactions -.->|Registro y Descubrimiento| Eureka
+    Notifications -.->|Registro y Descubrimiento| Eureka
+    Gateway -.->|Registro y Descubrimiento| Eureka
+
+    Users -->|Feign + API key| Notifications
     Transactions -->|Feign + API key| Users
     Transactions -->|Feign + API key| Catalog
     Transactions -->|Feign + API key| Notifications
@@ -43,6 +51,8 @@ flowchart LR
 
 | Servicio | Puerto | Persistencia | Responsabilidad principal | Seguridad externa | Seguridad interna |
 | --- | --- | --- | --- | --- | --- |
+| `eureka-server` | `8761` | - | Servidor de descubrimiento de servicios (Eureka) | - | - |
+| `api-gateway` | `8080` | - | Gateway de entrada, enrutamiento dinámico y balanceo | JWT (propaga token) | - |
 | `ms-users` | `8082` | PostgreSQL | usuarios, roles, registro, login y JWT | JWT | API key |
 | `ms-catalog` | `8081` | PostgreSQL | categorias, peliculas, disponibilidad y stock | JWT | API key |
 | `ms-transactions` | `8083` | PostgreSQL | arriendos, devoluciones e integracion de negocio | JWT | API key |
@@ -52,34 +62,38 @@ flowchart LR
 
 ### Registro
 
-1. El cliente envia `POST /api/v1/auth/register` a `ms-users`.
-2. `ms-users` valida unicidad de `username` y `email`.
-3. La password se cifra con BCrypt.
-4. El usuario se persiste en PostgreSQL.
-5. `ms-users` envia una notificacion de bienvenida a `ms-notifications`.
+1. El cliente envia `POST /api/v1/auth/register` al `api-gateway`.
+2. El gateway lo enruta a `ms-users`.
+3. `ms-users` valida unicidad de `username` y `email`.
+4. La password se cifra con BCrypt.
+5. El usuario se persiste en PostgreSQL.
+6. `ms-users` envia una notificacion de bienvenida a `ms-notifications`.
 
 ### Login
 
-1. El cliente envia `POST /api/v1/auth/login` a `ms-users`.
-2. Spring Security autentica credenciales.
-3. `ms-users` genera un JWT con identidad y rol.
-4. El cliente reutiliza ese token sobre `catalog` y `transactions`.
+1. El cliente envia `POST /api/v1/auth/login` al `api-gateway`.
+2. El gateway lo enruta a `ms-users`.
+3. Spring Security autentica credenciales.
+4. `ms-users` genera un JWT con identidad y rol.
+5. El cliente reutiliza ese token sobre `catalog` y `transactions` a través del gateway.
 
 ### Arriendo
 
-1. El cliente autenticado envia `POST /api/v1/rentals` a `ms-transactions`.
-2. `ms-transactions` valida al usuario con `ms-users`.
-3. `ms-transactions` solicita descuento de stock a `ms-catalog`.
-4. `ms-transactions` persiste el arriendo y sus detalles.
-5. `ms-transactions` registra la confirmacion en `ms-notifications`.
+1. El cliente autenticado envia `POST /api/v1/rentals` al `api-gateway`.
+2. El gateway lo enruta a `ms-transactions`.
+3. `ms-transactions` valida al usuario con `ms-users`.
+4. `ms-transactions` solicita descuento de stock a `ms-catalog`.
+5. `ms-transactions` persiste el arriendo y sus detalles.
+6. `ms-transactions` registra la confirmacion en `ms-notifications`.
 
 ### Devolucion
 
-1. El cliente autorizado envia `PATCH /api/v1/rentals/{id}/return`.
-2. `ms-transactions` valida el estado del arriendo.
-3. `ms-transactions` solicita reintegro de stock a `ms-catalog`.
-4. `ms-transactions` actualiza el estado a `RETURNED`.
-5. `ms-transactions` registra la confirmacion de devolucion en `ms-notifications`.
+1. El cliente autorizado envia `PATCH /api/v1/rentals/{id}/return` al `api-gateway`.
+2. El gateway lo enruta a `ms-transactions`.
+3. `ms-transactions` valida el estado del arriendo.
+4. `ms-transactions` solicita reintegro de stock a `ms-catalog`.
+5. `ms-transactions` actualiza el estado a `RETURNED`.
+6. `ms-transactions` registra la confirmacion de devolucion en `ms-notifications`.
 
 ## Seguridad
 
@@ -139,6 +153,8 @@ Porque el servicio persiste eventos autocontenidos de notificacion sin necesidad
 
 ```text
 blockbuster-microservices/
+|- api-gateway/          # Gateway centralizador y enrutador dinámico (puerto 8080)
+|- eureka-server/        # Servidor de descubrimiento de servicios Eureka (puerto 8761)
 |- catalog/
 |  \- catalog/
 |- users/
@@ -150,6 +166,26 @@ blockbuster-microservices/
 \- docs/
    \- postman/
 ```
+
+## Hitos del Proyecto e Infraestructura de Microservicios
+
+### 1. Servidor de Descubrimiento (Eureka Server)
+El microservicio `eureka-server` se ejecuta en el puerto `8761` y actúa como el registro central de servicios. Todos los microservicios del ecosistema (`ms-catalog`, `ms-users`, `ms-transactions`, `ms-notifications` y el propio `api-gateway`) se registran automáticamente con estatus `UP` en Eureka. Esto facilita el enrutamiento dinámico y balanceo de carga sin necesidad de configurar IPs estáticas.
+
+### 2. API Gateway
+El microservicio `api-gateway` centraliza todas las llamadas HTTP externas en el puerto `8080`.
+- **Enrutamiento Dinámico**: Enruta peticiones de forma dinámica consultando Eureka con el prefijo `lb://` (por ejemplo, `lb://transactions`).
+- **Filtro TokenRelay**: Cuenta con un filtro personalizado `TokenRelay` que intercepta la cabecera `Authorization: Bearer <token>` y la propaga transparentemente a los microservicios internos en cada redirección.
+- **Rutas configuradas**:
+  - Usuarios y Autenticación: `/api/v1/users/**` y `/api/v1/auth/**` -> `lb://users`
+  - Catálogo: `/api/v1/movies/**` y `/api/v1/catalog/**` -> `lb://catalog`
+  - Transacciones: `/api/v1/rentals/**` -> `lb://transactions`
+  - Notificaciones: `/api/v1/notifications/**` -> `lb://notifications`
+
+### 3. Documentación Swagger/OpenAPI integrada
+Los servicios de `transactions` y `notifications` exponen documentación interactiva con **Springdoc OpenAPI**:
+- Accesible localmente en cada servicio (`http://localhost:8083/swagger-ui.html` para `transactions` y `http://localhost:8084/swagger-ui.html` para `notifications`).
+- Permite la prueba y validación de endpoints directamente desde la UI interactiva, incluyendo autenticación mediante la configuración de seguridad del JWT.
 
 ## Documentacion del proyecto
 
@@ -181,15 +217,17 @@ Variables compartidas de integracion:
 
 ## Orden de arranque recomendado
 
-1. `notifications/notifications`
-2. `users/users`
-3. `catalog/catalog`
-4. `transactions/transactions`
+1. `eureka-server` (debe estar totalmente arriba antes de iniciar el resto)
+2. `api-gateway`
+3. `notifications/notifications`
+4. `users/users`
+5. `catalog/catalog`
+6. `transactions/transactions`
 
 Desde cada modulo:
 
 ```powershell
-mvn spring-boot:run
+.\mvnw.cmd spring-boot:run
 ```
 
 ## Accesos y pruebas basicas
