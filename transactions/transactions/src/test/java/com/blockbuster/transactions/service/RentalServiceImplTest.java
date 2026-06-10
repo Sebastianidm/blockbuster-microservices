@@ -76,6 +76,8 @@ class RentalServiceImplTest {
         SecurityContextHolder.clearContext();
     }
 
+
+
     @Test
     void shouldCreateRentalValidatingUserAndDiscountingStock() {
         SecurityContextHolder.getContext().setAuthentication(

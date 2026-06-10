@@ -3,6 +3,9 @@ package com.blockbuster.notifications.controller;
 import com.blockbuster.notifications.model.dto.NotificationRequestDTO;
 import com.blockbuster.notifications.model.dto.NotificationResponseDTO;
 import com.blockbuster.notifications.service.NotificationService;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,6 +19,8 @@ public class NotificationController {
 
     private final NotificationService service;
 
+    @Operation(summary = "Enviar notificacion", description = "Envia notificacion al usuario")
+    @ApiResponse(responseCode = "200", description = "Notificacion enviada exitosamente")
     @PostMapping
     public ResponseEntity<NotificationResponseDTO> send(@Valid @RequestBody NotificationRequestDTO request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.sendNotification(request));
