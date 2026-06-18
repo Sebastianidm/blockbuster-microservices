@@ -15,7 +15,7 @@ public class OpenApiConfig {
                 .info(new Info()
                         .title("Blockbuster Catalog API")
                         .version("v1")
-                        .description("API REST para la gestión del catálogo de películas y categorías")
+                        .description("API REST para la gestion del catalogo de peliculas y categorias")
                         .contact(new Contact()
                                 .name("Martin Caviedes")));
     }

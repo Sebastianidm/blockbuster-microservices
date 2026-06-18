@@ -1,6 +1,6 @@
 # ms-users
 
-`ms-users` concentra identidad, autenticacion y gestion de usuarios del sistema. Registra cuentas, autentica credenciales con JWT stateless, expone consultas protegidas para consumo externo y habilita un endpoint interno para integracion con `ms-transactions`.
+`ms-users` concentra identidad, autenticacion y gestion de usuarios del sistema. Registra cuentas, autentica credenciales con JWT stateless, expone consultas protegidas para consumo externo y habilita un endpoint interno para integración con `ms-transactions`.
 
 ## Contexto dentro del sistema
 
@@ -24,6 +24,10 @@ Ademas, al completar un registro, genera un evento hacia `ms-notifications`.
 | Seguridad interna | API key compartida |
 | Integracion saliente | `ms-notifications` |
 | UI OpenAPI | `/swagger-ui.html` |
+
+## Consumo en entorno integrado
+
+Para pruebas por servicio puede consumirse directamente en `http://localhost:8082`. En entorno integrado, el acceso de cliente recomendado es a traves de `api-gateway` usando la misma ruta funcional sobre `http://localhost:8080`.
 
 ## Responsabilidades
 
@@ -76,8 +80,8 @@ Variables esperadas:
 
 ```properties
 DB_USERNAME=neondb_owner
-DB_PASSWORD=replace_with_real_password
-JWT_SECRET=replace_with_a_256_bit_secret
+DB_PASSWORD=replace_with_real_postgres_password
+JWT_SECRET=replace_with_shared_jwt_secret_256_bits_minimum
 JWT_EXPIRATION=86400000
 INTERNAL_API_KEY=replace_with_shared_internal_api_key
 NOTIFICATIONS_SERVICE_URL=http://localhost:8084
@@ -191,6 +195,10 @@ mvn spring-boot:run
 - endpoint interno con API key
 - controladores con MockMvc
 
+Cobertura JaCoCo validada para este servicio:
+
+- instruction coverage: `95.21%`
+
 ## Formato de error
 
 ```json
@@ -205,4 +213,6 @@ mvn spring-boot:run
 ## Navegacion
 
 - [README principal](../../README.md)
+- [api-gateway](../../api-gateway/README.md)
+- [eureka-server](../../eureka-server/README.md)
 - [Coleccion Postman](../../docs/postman/README.md)
