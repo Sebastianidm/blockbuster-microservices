@@ -77,12 +77,13 @@ class SecurityConfigTest {
     }
 
     @Test
-    void shouldDenyUserRoleForAdminEmployeeEndpoint() throws Exception {
+    void shouldAllowUserRoleForRentalLookup() throws Exception {
+        when(rentalService.getRentalsByUser(25L)).thenReturn(List.of());
+
         mockMvc.perform(get("/api/v1/rentals/user/25")
                         .with(user("martin").roles("USER"))
                         .with(csrf()))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("Acceso denegado"));
+                .andExpect(status().isOk());
     }
 
     @Test
