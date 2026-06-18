@@ -17,6 +17,10 @@ Este microservicio participa como servicio transversal. No autentica usuarios fi
 | Integraciones entrantes | `ms-users` y `ms-transactions` |
 | UI OpenAPI | `/swagger-ui.html` |
 
+## Consumo en entorno integrado
+
+`ms-notifications` no representa un flujo primario de cliente final. Su uso esperado es interno, normalmente por invocacion directa entre microservicios con `X-Internal-Api-Key`.
+
 ## Responsabilidades
 
 - registrar notificaciones de bienvenida
@@ -52,6 +56,8 @@ Variables esperadas:
 MONGO_PASSWORD=replace_with_real_mongo_password
 INTERNAL_API_KEY=replace_with_shared_internal_api_key
 ```
+
+La URI del proyecto ya fija el usuario de MongoDB dentro de la configuracion del servicio, por lo que en este modulo solo se externaliza la password.
 
 ## Persistencia
 
@@ -123,6 +129,10 @@ mvn spring-boot:run
 - validacion de payload
 - respuesta uniforme de error
 
+Cobertura JaCoCo validada para este servicio:
+
+- instruction coverage: `96.36%`
+
 ## Formato de error
 
 ```json
@@ -137,4 +147,6 @@ mvn spring-boot:run
 ## Navegacion
 
 - [README principal](../../README.md)
+- [api-gateway](../../api-gateway/README.md)
+- [eureka-server](../../eureka-server/README.md)
 - [Coleccion Postman](../../docs/postman/README.md)

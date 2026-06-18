@@ -54,8 +54,34 @@ class NotificationControllerTest {
                         .header("X-Internal-Api-Key", "test-internal-key")
                         .contentType("application/json")
                         .content("{\"userId\":1,\"recipientEmail\":\"martin@duocuc.cl\",\"subject\":\"Hola\",\"message\":\"Test\",\"type\":\"USER_REGISTRATION\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value("abc123"))
-                .andExpect(jsonPath("$.status").value("SENT"));
+                        .andExpect(status().isCreated())
+                        .andExpect(jsonPath("$.id").value("abc123"))
+                        .andExpect(jsonPath("$.status").value("SENT"));
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenPayloadIsInvalid() throws Exception {
+        mockMvc.perform(post("/api/v1/notifications")
+                        .header("X-Internal-Api-Key", "test-internal-key")
+                        .contentType("application/json")
+                        .content("{\"userId\":null,\"recipientEmail\":\"martin@duocuc.cl\",\"subject\":\"Hola\",\"message\":\"Test\",\"type\":\"USER_REGISTRATION\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("El ID del usuario no puede ser nulo"))
+                .andExpect(jsonPath("$.path").value("/api/v1/notifications"));
+    }
+
+    @Test
+    void shouldReturnInternalServerErrorWhenServiceThrowsRuntimeException() throws Exception {
+        when(notificationService.sendNotification(any())).thenThrow(new RuntimeException("mongo down"));
+
+        mockMvc.perform(post("/api/v1/notifications")
+                        .header("X-Internal-Api-Key", "test-internal-key")
+                        .contentType("application/json")
+                        .content("{\"userId\":1,\"recipientEmail\":\"martin@duocuc.cl\",\"subject\":\"Hola\",\"message\":\"Test\",\"type\":\"USER_REGISTRATION\"}"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.message").value("Ocurrio un error interno en el microservicio de notificaciones"))
+                .andExpect(jsonPath("$.path").value("/api/v1/notifications"));
     }
 }

@@ -14,3 +14,9 @@
 # OS files
 Thumbs.db
 Desktop.ini
+
+# Local environment files
+.env
+**/.env
+!.env.example
+!**/.env.example

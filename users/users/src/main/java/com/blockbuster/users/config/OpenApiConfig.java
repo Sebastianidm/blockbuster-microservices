@@ -15,6 +15,6 @@ public class OpenApiConfig {
 			.info(new Info()
 				.title("Blockbuster MS-Users API")
 				.version("v1")
-				.description("Microservicio de seguridad y gestion de usuarios para Blockbuster"));
+				.description("Microservicio de seguridad, autenticacion y gestion de usuarios para Blockbuster"));
 	}
 }

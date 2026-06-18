@@ -1,5 +1,6 @@
 package com.blockbuster.users.model.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -13,8 +14,10 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Schema(description = "Cuerpo de la peticion para registrar un nuevo usuario")
 public class RegisterUserRequestDTO {
 
+	@Schema(description = "Nombre de usuario unico", example = "martin.demo")
 	@NotBlank(message = "El username es obligatorio")
 	@Size(min = 3, max = 50, message = "El username debe tener entre 3 y 50 caracteres")
 	@Pattern(
@@ -23,11 +26,13 @@ public class RegisterUserRequestDTO {
 	)
 	private String username;
 
+	@Schema(description = "Correo electronico del usuario", example = "martin.demo@duocuc.cl")
 	@NotBlank(message = "El email es obligatorio")
 	@Email(message = "El email debe tener un formato valido")
 	@Size(max = 120, message = "El email no puede superar los 120 caracteres")
 	private String email;
 
+	@Schema(description = "Contrasena con mayuscula, minuscula, numero y caracter especial", example = "Admin123!")
 	@NotBlank(message = "La password es obligatoria")
 	@Size(min = 8, max = 72, message = "La password debe tener entre 8 y 72 caracteres")
 	@Pattern(

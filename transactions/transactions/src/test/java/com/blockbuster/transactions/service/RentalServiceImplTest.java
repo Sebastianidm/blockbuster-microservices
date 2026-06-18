@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,6 +46,7 @@ import com.blockbuster.transactions.repository.RentalRepository;
 
 import feign.FeignException;
 import feign.Request;
+import feign.Response;
 import feign.RequestTemplate;
 
 @ExtendWith(MockitoExtension.class)
@@ -320,6 +322,213 @@ class RentalServiceImplTest {
         verify(rentalRepository, never()).save(any(Rental.class));
     }
 
+    @Test
+    void shouldGetRentalsByUserMappingRepositoryResults() {
+        Rental rental = Rental.builder().id(301L).userId(25L).details(List.of()).build();
+        RentalResponseDTO response = RentalResponseDTO.builder().id(301L).userId(25L).details(List.of()).build();
+
+        when(rentalRepository.findByUserId(25L)).thenReturn(List.of(rental));
+        when(rentalMapper.toResponseDTO(rental)).thenReturn(response);
+
+        List<RentalResponseDTO> result = rentalService.getRentalsByUser(25L);
+
+        assertEquals(List.of(response), result);
+    }
+
+    @Test
+    void shouldGetRentalByIdWhenExists() {
+        Rental rental = Rental.builder().id(302L).userId(25L).details(List.of()).build();
+        RentalResponseDTO response = RentalResponseDTO.builder().id(302L).userId(25L).details(List.of()).build();
+
+        when(rentalRepository.findById(302L)).thenReturn(Optional.of(rental));
+        when(rentalMapper.toResponseDTO(rental)).thenReturn(response);
+
+        RentalResponseDTO result = rentalService.getRentalById(302L);
+
+        assertEquals(response, result);
+    }
+
+    @Test
+    void shouldThrowNotFoundWhenGettingMissingRentalById() {
+        when(rentalRepository.findById(999L)).thenReturn(Optional.empty());
+
+        TransactionException exception = assertThrows(TransactionException.class, () -> rentalService.getRentalById(999L));
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
+        assertEquals("No existe un arriendo con ID: 999", exception.getMessage());
+    }
+
+    @Test
+    void shouldGetAllRentalsMappingRepositoryResults() {
+        Rental rental = Rental.builder().id(303L).userId(25L).details(List.of()).build();
+        RentalResponseDTO response = RentalResponseDTO.builder().id(303L).userId(25L).details(List.of()).build();
+
+        when(rentalRepository.findAll()).thenReturn(List.of(rental));
+        when(rentalMapper.toResponseDTO(rental)).thenReturn(response);
+
+        List<RentalResponseDTO> result = rentalService.getAllRentals();
+
+        assertEquals(List.of(response), result);
+    }
+
+    @Test
+    void shouldDeleteRentalWhenExists() {
+        Rental rental = Rental.builder().id(304L).userId(25L).details(List.of()).build();
+        when(rentalRepository.findById(304L)).thenReturn(Optional.of(rental));
+
+        rentalService.deleteRental(304L);
+
+        verify(rentalRepository).delete(rental);
+    }
+
+    @Test
+    void shouldFailWhenUsersServiceReturnsUnexpectedError() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("martin", null, List.of(() -> "ROLE_USER")));
+
+        RentalRequestDTO request = new RentalRequestDTO();
+        request.setUserId(25L);
+        request.setMovies(List.of(movieRequest(42L, 1)));
+
+        when(usersClient.getUserById(25L)).thenThrow(feignException(500, "users unavailable", Request.HttpMethod.GET));
+
+        TransactionException exception = assertThrows(TransactionException.class, () -> rentalService.createRental(request));
+
+        assertEquals(HttpStatus.BAD_GATEWAY, exception.getStatus());
+        assertEquals("No fue posible validar el usuario en ms-users", exception.getMessage());
+        verify(catalogClient, never()).checkAndDiscountStock(any(Long.class), any(Integer.class));
+    }
+
+    @Test
+    void shouldFailWhenCatalogRejectsInternalAuthenticationDuringCreateRental() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("martin", null, List.of(() -> "ROLE_USER")));
+
+        RentalRequestDTO request = new RentalRequestDTO();
+        request.setUserId(25L);
+        request.setMovies(List.of(movieRequest(42L, 1)));
+
+        when(usersClient.getUserById(25L)).thenReturn(userResponse(25L));
+        when(catalogClient.checkAndDiscountStock(42L, 1))
+                .thenThrow(new FeignException.Unauthorized("unauthorized", request(Request.HttpMethod.PATCH), null, Map.of()));
+
+        TransactionException exception = assertThrows(TransactionException.class, () -> rentalService.createRental(request));
+
+        assertEquals(HttpStatus.BAD_GATEWAY, exception.getStatus());
+        assertEquals("La autenticacion interna contra ms-catalog fue rechazada. Verifica INTERNAL_API_KEY",
+                exception.getMessage());
+        verify(rentalRepository, never()).save(any(Rental.class));
+    }
+
+    @Test
+    void shouldFailWhenCatalogReturnsUnexpectedErrorDuringCreateRental() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("martin", null, List.of(() -> "ROLE_USER")));
+
+        RentalRequestDTO request = new RentalRequestDTO();
+        request.setUserId(25L);
+        request.setMovies(List.of(movieRequest(42L, 1)));
+
+        when(usersClient.getUserById(25L)).thenReturn(userResponse(25L));
+        when(catalogClient.checkAndDiscountStock(42L, 1))
+                .thenThrow(feignException(500, "catalog unavailable", Request.HttpMethod.PATCH));
+
+        TransactionException exception = assertThrows(TransactionException.class, () -> rentalService.createRental(request));
+
+        assertEquals(HttpStatus.BAD_GATEWAY, exception.getStatus());
+        assertEquals("No fue posible validar el stock en ms-catalog", exception.getMessage());
+        verify(rentalRepository, never()).save(any(Rental.class));
+    }
+
+    @Test
+    void shouldReturnRentalWithoutRestoringStockWhenDetailsAreEmpty() {
+        Rental rental = Rental.builder()
+                .id(305L)
+                .userId(25L)
+                .status("ACTIVE")
+                .totalAmount(new BigDecimal("2500.00"))
+                .details(List.of())
+                .build();
+        RentalResponseDTO response = RentalResponseDTO.builder()
+                .id(305L)
+                .userId(25L)
+                .status("RETURNED")
+                .details(List.of())
+                .build();
+
+        when(rentalRepository.findById(305L)).thenReturn(Optional.of(rental));
+        when(rentalRepository.save(rental)).thenReturn(rental);
+        when(usersClient.getUserById(25L)).thenReturn(userResponse(25L));
+        when(rentalMapper.toResponseDTO(rental)).thenReturn(response);
+
+        RentalResponseDTO result = rentalService.returnRental(305L);
+
+        assertEquals("RETURNED", rental.getStatus());
+        assertEquals(response, result);
+        verify(catalogClient, never()).restoreStock(any(Long.class), any(Integer.class));
+    }
+
+    @Test
+    void shouldFailWhenCatalogRejectsRestoreQuantity() {
+        Rental rental = Rental.builder()
+                .id(306L)
+                .userId(25L)
+                .status("ACTIVE")
+                .details(List.of(RentalDetail.builder().movieId(42L).quantity(1).priceAtMoment(new BigDecimal("2500.00")).build()))
+                .build();
+
+        when(rentalRepository.findById(306L)).thenReturn(Optional.of(rental));
+        when(catalogClient.restoreStock(42L, 1))
+                .thenThrow(new FeignException.BadRequest("bad request", request(Request.HttpMethod.PATCH), null, Map.of()));
+
+        TransactionException exception = assertThrows(TransactionException.class, () -> rentalService.returnRental(306L));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        assertEquals("La cantidad a reintegrar es invalida para la pelicula con ID: 42", exception.getMessage());
+        verify(rentalRepository, never()).save(any(Rental.class));
+    }
+
+    @Test
+    void shouldFailWhenCatalogRejectsInternalAuthenticationDuringRestore() {
+        Rental rental = Rental.builder()
+                .id(307L)
+                .userId(25L)
+                .status("ACTIVE")
+                .details(List.of(RentalDetail.builder().movieId(42L).quantity(1).priceAtMoment(new BigDecimal("2500.00")).build()))
+                .build();
+
+        when(rentalRepository.findById(307L)).thenReturn(Optional.of(rental));
+        when(catalogClient.restoreStock(42L, 1))
+                .thenThrow(new FeignException.Forbidden("forbidden", request(Request.HttpMethod.PATCH), null, Map.of()));
+
+        TransactionException exception = assertThrows(TransactionException.class, () -> rentalService.returnRental(307L));
+
+        assertEquals(HttpStatus.BAD_GATEWAY, exception.getStatus());
+        assertEquals("La autenticacion interna contra ms-catalog fue rechazada al reintegrar stock",
+                exception.getMessage());
+        verify(rentalRepository, never()).save(any(Rental.class));
+    }
+
+    @Test
+    void shouldFailWhenCatalogReturnsUnexpectedErrorDuringRestore() {
+        Rental rental = Rental.builder()
+                .id(308L)
+                .userId(25L)
+                .status("ACTIVE")
+                .details(List.of(RentalDetail.builder().movieId(42L).quantity(1).priceAtMoment(new BigDecimal("2500.00")).build()))
+                .build();
+
+        when(rentalRepository.findById(308L)).thenReturn(Optional.of(rental));
+        when(catalogClient.restoreStock(42L, 1))
+                .thenThrow(feignException(503, "catalog unavailable", Request.HttpMethod.PATCH));
+
+        TransactionException exception = assertThrows(TransactionException.class, () -> rentalService.returnRental(308L));
+
+        assertEquals(HttpStatus.BAD_GATEWAY, exception.getStatus());
+        assertEquals("No fue posible reintegrar el stock en ms-catalog", exception.getMessage());
+        verify(rentalRepository, never()).save(any(Rental.class));
+    }
+
     private RentalDetailRequestDTO movieRequest(Long movieId, Integer quantity) {
         RentalDetailRequestDTO detailRequest = new RentalDetailRequestDTO();
         detailRequest.setMovieId(movieId);
@@ -353,12 +562,25 @@ class RentalServiceImplTest {
     }
 
     private FeignException.NotFound notFoundException(String message) {
-        Request request = Request.create(Request.HttpMethod.GET, "/test", Map.of(), null, new RequestTemplate());
-        return new FeignException.NotFound(message, request, null, Map.of());
+        return new FeignException.NotFound(message, request(Request.HttpMethod.GET), null, Map.of());
     }
 
     private FeignException.Conflict conflictException(String message) {
-        Request request = Request.create(Request.HttpMethod.PATCH, "/test", Map.of(), null, new RequestTemplate());
-        return new FeignException.Conflict(message, request, null, Map.of());
+        return new FeignException.Conflict(message, request(Request.HttpMethod.PATCH), null, Map.of());
+    }
+
+    private Request request(Request.HttpMethod method) {
+        return Request.create(method, "/test", Map.of(), null, new RequestTemplate());
+    }
+
+    private FeignException feignException(int status, String message, Request.HttpMethod method) {
+        Request request = request(method);
+        Response response = Response.builder()
+                .status(status)
+                .reason(message)
+                .request(request)
+                .headers(Map.of())
+                .build();
+        return FeignException.errorStatus("test", response);
     }
 }

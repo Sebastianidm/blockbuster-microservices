@@ -7,6 +7,7 @@ import com.blockbuster.transactions.service.RentalService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/rentals")
 @RequiredArgsConstructor
+@Tag(name = "rental-controller", description = "Endpoints para la gestion de arriendos")
 public class RentalController {
 
     private final RentalService rentalService;
@@ -41,7 +43,7 @@ public class RentalController {
     // GET: http://localhost:8083/api/v1/rentals/user/1
     @Operation(summary = "Historial por usuario", description = "Obtiene todo el historial de arriendos de un usuario especifico.")
     @ApiResponse(responseCode = "200", description = "Historial recuperado exitosamente")
-    @PreAuthorize("hasAnyRole('USER','EMPLOYEE','ADMIN')")
+    @PreAuthorize("hasAnyRole('EMPLOYEE','ADMIN')")
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<RentalResponseDTO>> getRentalsByUser(@PathVariable Long userId) {
         List<RentalResponseDTO> rentals = rentalService.getRentalsByUser(userId);
