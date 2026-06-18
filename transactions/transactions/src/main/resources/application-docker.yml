@@ -1,0 +1,21 @@
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+users:
+  service:
+    url: http://users:8082
+
+catalog:
+  service:
+    url: http://catalog:8081
+
+notifications:
+  service:
+    url: http://notifications:8084
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka
