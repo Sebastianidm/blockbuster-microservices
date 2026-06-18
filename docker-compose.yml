@@ -91,6 +91,30 @@ services:
     networks:
       - blockbuster-network
 
+  # ----------------------------------------------------------------------------
+  # 5. Broker de Mensajería: RabbitMQ (Management)
+  # ----------------------------------------------------------------------------
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: blockbuster-rabbitmq
+    restart: always
+    environment:
+      # Definimos usuario y contraseña inicial de administración
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      # Puerto 5672: Protocolo AMQP (utilizado por Spring Boot para enviar/recibir mensajes)
+      - "5672:5672"
+      # Puerto 15672: Interfaz Web de Administración de RabbitMQ
+      - "15672:15672"
+    networks:
+      - blockbuster-network
+    healthcheck:
+      # Verificamos la salud de RabbitMQ usando el comando interno de diagnóstico
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 # ------------------------------------------------------------------------------
 # REDES INTERNAS Y VOLÚMENES PERSISTENTES
 # ------------------------------------------------------------------------------
