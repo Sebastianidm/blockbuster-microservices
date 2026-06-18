@@ -8,7 +8,7 @@ spring:
       uri: mongodb+srv://admin_blockbuster:${MONGO_PASSWORD}@clusterfs1.sqmkchr.mongodb.net/notifications_db?appName=ClusterFS1
 
 server:
-  port: 8084
+  port: ${PORT:${SERVER_PORT:8084}}
 
 logging:
   level:
@@ -27,4 +27,4 @@ internal:
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://${EUREKA_SERVER_HOSTPORT:localhost:8761}/eureka}

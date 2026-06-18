@@ -1,36 +1,30 @@
-server:
-  port: ${PORT:${SERVER_PORT:8080}}
-
 spring:
-  application:
-    name: api-gateway
-
   cloud:
     gateway:
       default-filters:
         - TokenRelay
       routes:
         - id: catalog
-          uri: lb://catalog
+          uri: ${CATALOG_ROUTE_URI:http://catalog.railway.internal}
           predicates:
             - Path=/api/v1/movies/**, /api/v1/categories/**, /api/v1/catalog/**
 
         - id: users
-          uri: lb://users
+          uri: ${USERS_ROUTE_URI:http://users.railway.internal}
           predicates:
             - Path=/api/v1/users/**, /api/v1/auth/**
 
         - id: transactions
-          uri: lb://transactions
+          uri: ${TRANSACTIONS_ROUTE_URI:http://transactions.railway.internal}
           predicates:
             - Path=/api/v1/rentals/**
 
         - id: notifications
-          uri: lb://notifications
+          uri: ${NOTIFICATIONS_ROUTE_URI:http://notifications.railway.internal}
           predicates:
             - Path=/api/v1/notifications/**
 
 eureka:
   client:
-    service-url:
-      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://${EUREKA_SERVER_HOSTPORT:localhost:8761}/eureka}
+    enabled: false
+

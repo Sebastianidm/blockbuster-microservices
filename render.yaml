@@ -1,0 +1,161 @@
+services:
+  - type: web
+    name: eureka-server
+    runtime: docker
+    dockerfilePath: ./eureka-server/Dockerfile
+    dockerContext: ./eureka-server
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: "10000"
+
+  - type: web
+    name: api-gateway
+    runtime: docker
+    dockerfilePath: ./api-gateway/Dockerfile
+    dockerContext: ./api-gateway
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: SPRING_PROFILES_ACTIVE
+        value: render
+      - key: EUREKA_SERVER_HOSTPORT
+        fromService:
+          type: web
+          name: eureka-server
+          property: hostport
+      - key: CATALOG_ROUTE_HOSTPORT
+        fromService:
+          type: pserv
+          name: catalog
+          property: hostport
+      - key: USERS_ROUTE_HOSTPORT
+        fromService:
+          type: pserv
+          name: users
+          property: hostport
+      - key: TRANSACTIONS_ROUTE_HOSTPORT
+        fromService:
+          type: pserv
+          name: transactions
+          property: hostport
+      - key: NOTIFICATIONS_ROUTE_HOSTPORT
+        fromService:
+          type: pserv
+          name: notifications
+          property: hostport
+
+  - type: pserv
+    name: notifications
+    runtime: docker
+    dockerfilePath: ./notifications/notifications/Dockerfile
+    dockerContext: ./notifications/notifications
+    healthCheckPath: /v3/api-docs
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: EUREKA_SERVER_HOSTPORT
+        fromService:
+          type: web
+          name: eureka-server
+          property: hostport
+      - key: MONGO_PASSWORD
+        sync: false
+      - key: INTERNAL_API_KEY
+        sync: false
+
+  - type: pserv
+    name: users
+    runtime: docker
+    dockerfilePath: ./users/users/Dockerfile
+    dockerContext: ./users/users
+    healthCheckPath: /v3/api-docs
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: EUREKA_SERVER_HOSTPORT
+        fromService:
+          type: web
+          name: eureka-server
+          property: hostport
+      - key: DB_USERNAME
+        value: neondb_owner
+      - key: DB_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRATION
+        value: "86400000"
+      - key: INTERNAL_API_KEY
+        sync: false
+      - key: NOTIFICATIONS_SERVICE_HOSTPORT
+        fromService:
+          type: pserv
+          name: notifications
+          property: hostport
+
+  - type: pserv
+    name: catalog
+    runtime: docker
+    dockerfilePath: ./catalog/catalog/Dockerfile
+    dockerContext: ./catalog/catalog
+    healthCheckPath: /v3/api-docs
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: EUREKA_SERVER_HOSTPORT
+        fromService:
+          type: web
+          name: eureka-server
+          property: hostport
+      - key: DB_USERNAME
+        value: neondb_owner
+      - key: DB_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRATION
+        value: "86400000"
+      - key: INTERNAL_API_KEY
+        sync: false
+
+  - type: pserv
+    name: transactions
+    runtime: docker
+    dockerfilePath: ./transactions/transactions/Dockerfile
+    dockerContext: ./transactions/transactions
+    healthCheckPath: /v3/api-docs
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: EUREKA_SERVER_HOSTPORT
+        fromService:
+          type: web
+          name: eureka-server
+          property: hostport
+      - key: DB_USERNAME
+        value: neondb_owner
+      - key: DB_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRATION
+        value: "86400000"
+      - key: INTERNAL_API_KEY
+        sync: false
+      - key: USERS_SERVICE_HOSTPORT
+        fromService:
+          type: pserv
+          name: users
+          property: hostport
+      - key: CATALOG_SERVICE_HOSTPORT
+        fromService:
+          type: pserv
+          name: catalog
+          property: hostport
+      - key: NOTIFICATIONS_SERVICE_HOSTPORT
+        fromService:
+          type: pserv
+          name: notifications
+          property: hostport

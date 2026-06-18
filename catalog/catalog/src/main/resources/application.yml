@@ -16,7 +16,7 @@ spring:
     enabled: true
 
 server:
-  port: 8081
+  port: ${PORT:${SERVER_PORT:8081}}
 
 springdoc:
   api-docs:
@@ -41,4 +41,4 @@ internal:
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://${EUREKA_SERVER_HOSTPORT:localhost:8761}/eureka}
