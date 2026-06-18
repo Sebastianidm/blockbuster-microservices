@@ -1,45 +1,50 @@
 # Blockbuster Microservices
 
-Monorepo de una plataforma de arriendo de peliculas inspirada en Blockbuster, implementada con arquitectura de microservicios sobre Spring Boot. El proyecto separa identidad, catalogo, transacciones y notificaciones en servicios independientes, cada uno con su propia persistencia y contratos HTTP internos claramente definidos.
+Monorepo de una plataforma de arriendo de peliculas inspirada en Blockbuster, implementada con arquitectura de microservicios sobre Spring Boot. El sistema separa identidad, catalogo, transacciones, notificaciones e infraestructura en componentes independientes, con persistencia desacoplada y comunicacion REST controlada.
 
 ## Caso de negocio
 
-El sistema modela una operacion de arriendo de peliculas donde:
+La plataforma modela un flujo de arriendo donde:
 
-- los usuarios deben registrarse e iniciar sesion
-- el catalogo debe mantener categorias, peliculas, disponibilidad y stock
-- los arriendos deben validar usuario, descontar inventario y registrar el movimiento
+- un usuario debe registrarse e iniciar sesion
+- el catalogo debe administrar peliculas, categorias, disponibilidad y stock
+- los arriendos deben validar al usuario, descontar inventario y registrar el movimiento
+- las devoluciones deben reintegrar stock y actualizar el estado del arriendo
 - las notificaciones deben dejar trazabilidad de eventos relevantes del flujo
 
-El caso de uso principal no ocurre en un solo modulo. Ocurre por colaboracion entre varios microservicios coordinados por contratos REST.
+El caso de uso principal no ocurre en un solo modulo. Se resuelve por colaboracion entre varios microservicios, con responsabilidades bien separadas.
 
-## Objetivo tecnico del proyecto
+## Objetivo tecnico
 
 El repositorio demuestra:
 
 - separacion de responsabilidades por dominio
-- seguridad externa con JWT
+- patron CSR con capas `controller`, `service`, `repository` y `model`
+- seguridad externa con JWT Bearer
 - seguridad interna con API key compartida
-- persistencia relacional y documental segun necesidad del servicio
-- integracion entre microservicios con OpenFeign
+- integracion REST entre microservicios con OpenFeign
 - versionado de esquema con Flyway en los servicios relacionales
-- validacion y manejo uniforme de errores en API REST
+- documentacion OpenAPI por microservicio
+- pruebas unitarias y de capa web sobre flujos criticos
+- despliegue local y por contenedores con Docker Compose
+- descubrimiento de servicios con Eureka y enrutamiento centralizado con API Gateway
 
 ## Arquitectura general
 
 ```mermaid
 flowchart TD
     Client["Cliente REST"] --> Gateway["api-gateway :8080"]
-    Gateway -->|Enrutamiento dinámico lb:// + TokenRelay| Users["ms-users :8082"]
-    Gateway -->|Enrutamiento dinámico lb:// + TokenRelay| Catalog["ms-catalog :8081"]
-    Gateway -->|Enrutamiento dinámico lb:// + TokenRelay| Transactions["ms-transactions :8083"]
-    Gateway -->|Enrutamiento dinámico lb:// + TokenRelay| Notifications["ms-notifications :8084"]
 
-    Users -.->|Registro y Descubrimiento| Eureka["eureka-server :8761"]
-    Catalog -.->|Registro y Descubrimiento| Eureka
-    Transactions -.->|Registro y Descubrimiento| Eureka
-    Notifications -.->|Registro y Descubrimiento| Eureka
-    Gateway -.->|Registro y Descubrimiento| Eureka
+    Gateway -->|JWT relay + lb://users| Users["ms-users :8082"]
+    Gateway -->|JWT relay + lb://catalog| Catalog["ms-catalog :8081"]
+    Gateway -->|JWT relay + lb://transactions| Transactions["ms-transactions :8083"]
+    Gateway -->|Ruta controlada| Notifications["ms-notifications :8084"]
+
+    Gateway -.-> Eureka["eureka-server :8761"]
+    Users -.-> Eureka
+    Catalog -.-> Eureka
+    Transactions -.-> Eureka
+    Notifications -.-> Eureka
 
     Users -->|Feign + API key| Notifications
     Transactions -->|Feign + API key| Users
@@ -47,53 +52,47 @@ flowchart TD
     Transactions -->|Feign + API key| Notifications
 ```
 
-## Microservicios
+## Servicios del ecosistema
 
-| Servicio | Puerto | Persistencia | Responsabilidad principal | Seguridad externa | Seguridad interna |
+| Servicio | Puerto | Persistencia | Rol principal | Seguridad externa | Seguridad interna |
 | --- | --- | --- | --- | --- | --- |
-| `eureka-server` | `8761` | - | Servidor de descubrimiento de servicios (Eureka) | - | - |
-| `api-gateway` | `8080` | - | Gateway de entrada, enrutamiento dinámico y balanceo | JWT (propaga token) | - |
+| `eureka-server` | `8761` | - | registro y descubrimiento de servicios | - | - |
+| `api-gateway` | `8080` | - | entrada unica, enrutamiento y relay de JWT | relay de JWT | - |
 | `ms-users` | `8082` | PostgreSQL | usuarios, roles, registro, login y JWT | JWT | API key |
 | `ms-catalog` | `8081` | PostgreSQL | categorias, peliculas, disponibilidad y stock | JWT | API key |
 | `ms-transactions` | `8083` | PostgreSQL | arriendos, devoluciones e integracion de negocio | JWT | API key |
-| `ms-notifications` | `8084` | MongoDB | registro y simulacion de notificaciones | no expone flujo de cliente final | API key |
+| `ms-notifications` | `8084` | MongoDB | registro de eventos y notificaciones | no es flujo principal de cliente | API key |
 
-## Flujo principal del sistema
+## Flujo funcional principal
 
 ### Registro
 
 1. El cliente envia `POST /api/v1/auth/register` al `api-gateway`.
-2. El gateway lo enruta a `ms-users`.
-3. `ms-users` valida unicidad de `username` y `email`.
-4. La password se cifra con BCrypt.
-5. El usuario se persiste en PostgreSQL.
-6. `ms-users` envia una notificacion de bienvenida a `ms-notifications`.
+2. El gateway enruta la solicitud a `ms-users`.
+3. `ms-users` valida unicidad de `username` y `email`, cifra la password y persiste al usuario.
+4. `ms-users` registra una notificacion de bienvenida en `ms-notifications`.
 
 ### Login
 
 1. El cliente envia `POST /api/v1/auth/login` al `api-gateway`.
-2. El gateway lo enruta a `ms-users`.
-3. Spring Security autentica credenciales.
-4. `ms-users` genera un JWT con identidad y rol.
-5. El cliente reutiliza ese token sobre `catalog` y `transactions` a través del gateway.
+2. `ms-users` autentica las credenciales y genera el JWT.
+3. El token se reutiliza desde el cliente para consumir `catalog` y `transactions` por medio del gateway.
 
 ### Arriendo
 
 1. El cliente autenticado envia `POST /api/v1/rentals` al `api-gateway`.
-2. El gateway lo enruta a `ms-transactions`.
-3. `ms-transactions` valida al usuario con `ms-users`.
-4. `ms-transactions` solicita descuento de stock a `ms-catalog`.
-5. `ms-transactions` persiste el arriendo y sus detalles.
-6. `ms-transactions` registra la confirmacion en `ms-notifications`.
+2. `ms-transactions` valida al usuario con `ms-users`.
+3. `ms-transactions` solicita descuento de stock a `ms-catalog`.
+4. El arriendo se persiste en PostgreSQL.
+5. Se registra una confirmacion en `ms-notifications`.
 
 ### Devolucion
 
 1. El cliente autorizado envia `PATCH /api/v1/rentals/{id}/return` al `api-gateway`.
-2. El gateway lo enruta a `ms-transactions`.
-3. `ms-transactions` valida el estado del arriendo.
-4. `ms-transactions` solicita reintegro de stock a `ms-catalog`.
-5. `ms-transactions` actualiza el estado a `RETURNED`.
-6. `ms-transactions` registra la confirmacion de devolucion en `ms-notifications`.
+2. `ms-transactions` valida el estado del arriendo.
+3. `ms-transactions` solicita reintegro de stock a `ms-catalog`.
+4. El arriendo cambia a estado `RETURNED`.
+5. Se registra la devolucion en `ms-notifications`.
 
 ## Seguridad
 
@@ -105,7 +104,7 @@ Se usa JWT Bearer en:
 - `ms-catalog`
 - `ms-transactions`
 
-Estos servicios deben compartir:
+Todos esos servicios deben compartir:
 
 - `JWT_SECRET`
 - `JWT_EXPIRATION`
@@ -118,11 +117,14 @@ Los endpoints internos se protegen con:
 X-Internal-Api-Key: <shared-key>
 ```
 
-La misma `INTERNAL_API_KEY` debe existir en los cuatro microservicios.
+La misma `INTERNAL_API_KEY` debe existir en:
 
-### Idea clave
+- `ms-users`
+- `ms-catalog`
+- `ms-transactions`
+- `ms-notifications`
 
-JWT representa al usuario final. La API key representa confianza entre servicios. No resuelven el mismo problema.
+JWT representa al usuario final. La API key representa confianza entre servicios. Son mecanismos complementarios, no intercambiables.
 
 ## Persistencia
 
@@ -134,12 +136,12 @@ Se usa en:
 - `catalog`
 - `transactions`
 
-Porque estos dominios requieren:
+Porque esos dominios requieren:
 
-- relaciones claras
-- integridad estructural
+- relaciones estructuradas
+- integridad referencial
 - restricciones de unicidad
-- transacciones relacionales
+- consistencia transaccional
 
 ### MongoDB
 
@@ -147,66 +149,78 @@ Se usa en:
 
 - `notifications`
 
-Porque el servicio persiste eventos autocontenidos de notificacion sin necesidad de joins o relaciones complejas.
+Porque el servicio registra eventos autocontenidos, sin joins ni relaciones complejas entre entidades.
 
-## Estructura del repositorio
+## Infraestructura
 
-```text
-blockbuster-microservices/
-|- api-gateway/          # Gateway centralizador y enrutador dinámico (puerto 8080)
-|- eureka-server/        # Servidor de descubrimiento de servicios Eureka (puerto 8761)
-|- catalog/
-|  \- catalog/
-|- users/
-|  \- users/
-|- transactions/
-|  \- transactions/
-|- notifications/
-|  \- notifications/
-\- docs/
-   \- postman/
-```
+### API Gateway
 
-## Hitos del Proyecto e Infraestructura de Microservicios
+`api-gateway` centraliza las solicitudes externas en `http://localhost:8080` y enruta por nombre de servicio con `lb://`:
 
-### 1. Servidor de Descubrimiento (Eureka Server)
-El microservicio `eureka-server` se ejecuta en el puerto `8761` y actúa como el registro central de servicios. Todos los microservicios del ecosistema (`ms-catalog`, `ms-users`, `ms-transactions`, `ms-notifications` y el propio `api-gateway`) se registran automáticamente con estatus `UP` en Eureka. Esto facilita el enrutamiento dinámico y balanceo de carga sin necesidad de configurar IPs estáticas.
+- `/api/v1/auth/**` y `/api/v1/users/**` -> `users`
+- `/api/v1/movies/**`, `/api/v1/categories/**` y `/api/v1/catalog/**` -> `catalog`
+- `/api/v1/rentals/**` -> `transactions`
+- `/api/v1/notifications/**` -> `notifications`
 
-### 2. API Gateway
-El microservicio `api-gateway` centraliza todas las llamadas HTTP externas en el puerto `8080`.
-- **Enrutamiento Dinámico**: Enruta peticiones de forma dinámica consultando Eureka con el prefijo `lb://` (por ejemplo, `lb://transactions`).
-- **Filtro TokenRelay**: Cuenta con un filtro personalizado `TokenRelay` que intercepta la cabecera `Authorization: Bearer <token>` y la propaga transparentemente a los microservicios internos en cada redirección.
-- **Rutas configuradas**:
-  - Usuarios y Autenticación: `/api/v1/users/**` y `/api/v1/auth/**` -> `lb://users`
-  - Catálogo: `/api/v1/movies/**` y `/api/v1/catalog/**` -> `lb://catalog`
-  - Transacciones: `/api/v1/rentals/**` -> `lb://transactions`
-  - Notificaciones: `/api/v1/notifications/**` -> `lb://notifications`
+Ademas aplica un filtro `TokenRelay` para propagar el header `Authorization` hacia los microservicios protegidos por JWT.
 
-### 3. Documentación Swagger/OpenAPI integrada
-Los servicios de `transactions` y `notifications` exponen documentación interactiva con **Springdoc OpenAPI**:
-- Accesible localmente en cada servicio (`http://localhost:8083/swagger-ui.html` para `transactions` y `http://localhost:8084/swagger-ui.html` para `notifications`).
-- Permite la prueba y validación de endpoints directamente desde la UI interactiva, incluyendo autenticación mediante la configuración de seguridad del JWT.
+### Eureka Server
 
-## Documentacion del proyecto
+`eureka-server` expone el registro de servicios en `http://localhost:8761`. `api-gateway` y los microservicios de negocio se registran alli para permitir descubrimiento y enrutamiento dinamico sin URLs fijas entre servicios.
 
-### Documentacion por servicio
+### Compatibilidad de versiones
 
+La infraestructura (`api-gateway` y `eureka-server`) se mantiene sobre Spring Boot `3.3.4` y Spring Cloud `2023.0.3`, mientras que los microservicios de negocio usan Spring Boot `4.0.6` y Spring Cloud `2025.1.1`.
+
+La interoperabilidad se mantiene porque:
+
+- gateway y servicios de negocio se comunican por HTTP
+- el registro de servicios se resuelve por protocolo Eureka
+- no existe acoplamiento binario entre los modulos de infraestructura y los modulos de negocio
+
+Las pruebas del repositorio validan que esta combinacion compila, arranca contexto y mantiene el contrato esperado.
+
+## Documentacion por servicio
+
+- [api-gateway](./api-gateway/README.md)
+- [eureka-server](./eureka-server/README.md)
 - [ms-users](./users/users/README.md)
 - [ms-catalog](./catalog/catalog/README.md)
 - [ms-transactions](./transactions/transactions/README.md)
 - [ms-notifications](./notifications/notifications/README.md)
 
-### Coleccion Postman
+## Coleccion Postman
 
 - [Guia de Postman](./docs/postman/README.md)
 - [Collection](./docs/postman/Blockbuster-system-integration.postman_collection.json)
 - [Environment local](./docs/postman/Blockbuster-local.postman_environment.json)
 
+La coleccion usa dos criterios:
+
+- las solicitudes de cliente final pasan por `api-gateway`
+- las solicitudes internas protegidas por API key apuntan directo al microservicio responsable
+
+## OpenAPI y Swagger
+
+Los microservicios de negocio exponen documentacion interactiva:
+
+- `http://localhost:8082/swagger-ui.html`
+- `http://localhost:8081/swagger-ui.html`
+- `http://localhost:8083/swagger-ui.html`
+- `http://localhost:8084/swagger-ui.html`
+
+Y sus documentos OpenAPI:
+
+- `http://localhost:8082/v3/api-docs`
+- `http://localhost:8081/v3/api-docs`
+- `http://localhost:8083/v3/api-docs`
+- `http://localhost:8084/v3/api-docs`
+
 ## Configuracion local
 
-Cada microservicio incluye un archivo `.env.example` con las variables necesarias para levantar el servicio localmente. Antes de ejecutar, debe existir un archivo `.env` por modulo con los valores reales del entorno.
+Cada microservicio de negocio incluye su propio `.env.example`. Antes de ejecutar localmente, debe existir un archivo `.env` por modulo con sus valores reales.
 
-Variables compartidas de integracion:
+Variables compartidas mas relevantes:
 
 - `JWT_SECRET`
 - `JWT_EXPIRATION`
@@ -215,9 +229,9 @@ Variables compartidas de integracion:
 - `CATALOG_SERVICE_URL=http://localhost:8081`
 - `NOTIFICATIONS_SERVICE_URL=http://localhost:8084`
 
-## Orden de arranque recomendado
+## Orden de arranque local recomendado
 
-1. `eureka-server` (debe estar totalmente arriba antes de iniciar el resto)
+1. `eureka-server`
 2. `api-gateway`
 3. `notifications/notifications`
 4. `users/users`
@@ -227,67 +241,103 @@ Variables compartidas de integracion:
 Desde cada modulo:
 
 ```powershell
-.\mvnw.cmd spring-boot:run
+mvn spring-boot:run
 ```
 
-## Accesos y pruebas basicas
+## Ejecucion con Docker Compose
 
-### Credencial administradora semilla
+El repositorio incluye:
 
-- `username`: `admin`
-- `password`: `Admin123!`
+- [docker-compose.yml](./docker-compose.yml)
+- [plantilla de variables Docker](./.env.docker.example)
 
-### Verificaciones minimas sugeridas
+Pasos:
 
-- `POST /api/v1/auth/login`
-- `GET /api/v1/movies/available`
-- `POST /api/v1/rentals`
-- `PATCH /api/v1/rentals/{id}/return`
-- `POST /api/v1/notifications` con API key valida
+1. Crear un archivo `.env` en la raiz del repositorio usando `.env.docker.example` como base.
+2. Completar credenciales reales.
+3. Ejecutar:
 
-## Estado funcional relevante
+```powershell
+docker compose up --build
+```
 
-El proyecto incluye:
+## Pruebas
 
-- documentacion OpenAPI por microservicio
-- flujo de arriendo con descuento real de stock
-- flujo de devolucion con reintegro real de stock
-- integracion interna protegida por API key
-- respuesta uniforme de errores con `timestamp`, `status`, `message` y `path`
-
-## Ejecutar pruebas
-
-Desde el modulo correspondiente:
+Cada modulo principal puede validarse con:
 
 ```powershell
 mvn test
 ```
 
-Las suites cubren, segun el servicio:
+Para generar el reporte local de cobertura por modulo:
 
-- validaciones DTO
-- mappers
-- servicios
-- seguridad JWT
-- seguridad interna por API key
-- controladores con MockMvc
-- repositorios con soporte de migraciones en pruebas
+```powershell
+mvn jacoco:report
+```
 
-## Tecnologias principales
+Durante esta integracion quedaron verificados:
 
-- Java 21
-- Spring Boot 4.0.6
-- Spring Security
-- JJWT
-- Spring Data JPA
-- Spring Data MongoDB
-- PostgreSQL
-- MongoDB
-- Flyway
-- OpenFeign
-- Apache HttpClient 5
-- Spring Validation
-- Springdoc OpenAPI
-- JUnit 5
-- Mockito
-- MockMvc
+- `users/users`
+- `catalog/catalog`
+- `transactions/transactions`
+- `notifications/notifications`
+- `api-gateway`
+- `eureka-server`
+
+### Cobertura JaCoCo validada
+
+Snapshot de cobertura sobre los microservicios de negocio:
+
+| Servicio | Instruction coverage | Branch coverage |
+| --- | --- | --- |
+| `ms-users` | `95.21%` | cobertura validada en suite local |
+| `ms-catalog` | `96.03%` | `84.29%` |
+| `ms-transactions` | `95.64%` | cobertura validada en suite local |
+| `ms-notifications` | `96.36%` | cobertura validada en suite local |
+
+Promedio agregado de los servicios de negocio:
+
+- instruction coverage: `95.71%`
+- branch coverage: `79.38%`
+- line coverage: `96.03%`
+- method coverage: `95.10%`
+
+## Credenciales semilla relevantes
+
+- `admin / Admin123!`
+- `empleado.centro / Admin123!`
+- `laura.cliente / Admin123!`
+
+## Estructura del repositorio
+
+```text
+blockbuster-microservices/
+|- api-gateway/
+|- eureka-server/
+|- catalog/
+|  \- catalog/
+|- users/
+|  \- users/
+|- transactions/
+|  \- transactions/
+|- notifications/
+|  \- notifications/
+|- docs/
+|  \- postman/
+|- docker-compose.yml
+\- README.md
+```
+
+## Estado funcional cubierto
+
+El proyecto cubre:
+
+- autenticacion JWT
+- catalogo con stock y disponibilidad
+- arriendos con descuento de stock
+- devoluciones con reintegro de stock
+- notificaciones internas por API key
+- documentacion OpenAPI
+- descubrimiento de servicios con Eureka
+- enrutamiento centralizado con API Gateway
+- soporte de ejecucion local y por Docker Compose

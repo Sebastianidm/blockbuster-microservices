@@ -24,6 +24,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -70,8 +71,63 @@ class MovieControllerTest {
                         .content("{\"title\":\"\",\"categoryId\":3,\"releaseYear\":2010,\"stock\":6,\"available\":true}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("El título de la película es obligatorio"))
+                .andExpect(jsonPath("$.message").value("El titulo de la pelicula es obligatorio"))
                 .andExpect(jsonPath("$.path").value("/api/v1/movies"));
+    }
+
+    @Test
+    void shouldGetAllMoviesSuccessfully() throws Exception {
+        when(movieService.getAllMovies()).thenReturn(List.of(
+                MovieResponseDTO.builder().id(1L).title("The Matrix").build(),
+                MovieResponseDTO.builder().id(2L).title("Interstellar").build()
+        ));
+
+        mockMvc.perform(get("/api/v1/movies"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].title").value("The Matrix"))
+                .andExpect(jsonPath("$[1].title").value("Interstellar"));
+    }
+
+    @Test
+    void shouldGetMovieByIdSuccessfully() throws Exception {
+        when(movieService.getMovieById(9L)).thenReturn(MovieResponseDTO.builder()
+                .id(9L)
+                .title("The Pursuit of Happyness")
+                .categoryId(4L)
+                .categoryName("Drama")
+                .releaseYear(2006)
+                .stock(1)
+                .available(true)
+                .build());
+
+        mockMvc.perform(get("/api/v1/movies/9"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(9))
+                .andExpect(jsonPath("$.title").value("The Pursuit of Happyness"));
+    }
+
+    @Test
+    void shouldGetMoviesByCategorySuccessfully() throws Exception {
+        when(movieService.getMoviesByCategory(3L)).thenReturn(List.of(
+                MovieResponseDTO.builder().id(1L).title("The Matrix").categoryId(3L).build(),
+                MovieResponseDTO.builder().id(3L).title("Interstellar").categoryId(3L).build()
+        ));
+
+        mockMvc.perform(get("/api/v1/movies/category/3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].categoryId").value(3))
+                .andExpect(jsonPath("$[1].title").value("Interstellar"));
+    }
+
+    @Test
+    void shouldSearchMoviesByTitleSuccessfully() throws Exception {
+        when(movieService.searchMoviesByTitle("Matrix")).thenReturn(List.of(
+                MovieResponseDTO.builder().id(1L).title("The Matrix").build()
+        ));
+
+        mockMvc.perform(get("/api/v1/movies/search").param("title", "Matrix"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].title").value("The Matrix"));
     }
 
     @Test
@@ -83,6 +139,26 @@ class MovieControllerTest {
         mockMvc.perform(get("/api/v1/movies/available"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].title").value("The Matrix"));
+    }
+
+    @Test
+    void shouldUpdateMovieSuccessfully() throws Exception {
+        when(movieService.updateMovie(eq(5L), any())).thenReturn(MovieResponseDTO.builder()
+                .id(5L)
+                .title("Rush Hour")
+                .categoryId(1L)
+                .categoryName("Action")
+                .releaseYear(1998)
+                .stock(4)
+                .available(true)
+                .build());
+
+        mockMvc.perform(put("/api/v1/movies/5")
+                        .contentType("application/json")
+                        .content("{\"title\":\"Rush Hour\",\"categoryId\":1,\"releaseYear\":1998,\"stock\":4,\"available\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(5))
+                .andExpect(jsonPath("$.title").value("Rush Hour"));
     }
 
     @Test
@@ -126,13 +202,13 @@ class MovieControllerTest {
     @Test
     void shouldReturnConflictWhenMovieStockIsInsufficient() throws Exception {
         when(movieService.checkAndDiscountStock(7L, 10))
-                .thenThrow(new CatalogException("Stock insuficiente para la película con ID: 7", HttpStatus.CONFLICT));
+                .thenThrow(new CatalogException("Stock insuficiente para la pelicula con ID: 7", HttpStatus.CONFLICT));
 
         mockMvc.perform(patch("/api/v1/movies/7/stock/discount")
                         .param("quantity", "10"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.message").value("Stock insuficiente para la película con ID: 7"));
+                .andExpect(jsonPath("$.message").value("Stock insuficiente para la pelicula con ID: 7"));
     }
 
     @Test

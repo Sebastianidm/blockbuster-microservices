@@ -15,6 +15,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -89,6 +90,205 @@ class MovieServiceImplTest {
         assertThat(result.getId()).isEqualTo(11L);
         assertThat(result.getTitle()).isEqualTo("Inception");
         assertThat(movie.getTitle()).isEqualTo("Inception");
+    }
+
+    @Test
+    void shouldThrowExceptionWhenCategoryDoesNotExistDuringCreate() {
+        MovieRequestDTO request = new MovieRequestDTO();
+        request.setTitle("Inception");
+        request.setCategoryId(999L);
+        request.setReleaseYear(2010);
+        request.setStock(6);
+        request.setAvailable(true);
+
+        when(categoryRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> movieService.createMovie(request))
+                .isInstanceOf(CatalogException.class)
+                .hasMessage("Categoría no encontrada con ID: 999");
+    }
+
+    @Test
+    void shouldGetAllMoviesSuccessfully() {
+        Category category = Category.builder().id(3L).name("Sci-Fi").build();
+        Movie movie = Movie.builder().id(1L).title("The Matrix").category(category).releaseYear(1999).stock(4).available(true).build();
+        MovieResponseDTO response = MovieResponseDTO.builder().id(1L).title("The Matrix").categoryId(3L).build();
+
+        when(movieRepository.findAll()).thenReturn(List.of(movie));
+        when(movieMapper.toResponseDTO(movie)).thenReturn(response);
+
+        List<MovieResponseDTO> result = movieService.getAllMovies();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getTitle()).isEqualTo("The Matrix");
+    }
+
+    @Test
+    void shouldGetMovieByIdSuccessfully() {
+        Category category = Category.builder().id(4L).name("Drama").build();
+        Movie movie = Movie.builder().id(9L).title("Titanic").category(category).releaseYear(1997).stock(1).available(true).build();
+        MovieResponseDTO response = MovieResponseDTO.builder().id(9L).title("Titanic").categoryId(4L).build();
+
+        when(movieRepository.findById(9L)).thenReturn(Optional.of(movie));
+        when(movieMapper.toResponseDTO(movie)).thenReturn(response);
+
+        MovieResponseDTO result = movieService.getMovieById(9L);
+
+        assertThat(result.getId()).isEqualTo(9L);
+        assertThat(result.getTitle()).isEqualTo("Titanic");
+    }
+
+    @Test
+    void shouldGetMoviesByCategorySuccessfully() {
+        Category category = Category.builder().id(3L).name("Sci-Fi").build();
+        Movie movie = Movie.builder().id(2L).title("Interstellar").category(category).releaseYear(2014).stock(3).available(true).build();
+        MovieResponseDTO response = MovieResponseDTO.builder().id(2L).title("Interstellar").categoryId(3L).build();
+
+        when(movieRepository.findByCategoryId(3L)).thenReturn(List.of(movie));
+        when(movieMapper.toResponseDTO(movie)).thenReturn(response);
+
+        List<MovieResponseDTO> result = movieService.getMoviesByCategory(3L);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getCategoryId()).isEqualTo(3L);
+    }
+
+    @Test
+    void shouldSearchMoviesByTitleSuccessfully() {
+        Category category = Category.builder().id(3L).name("Sci-Fi").build();
+        Movie movie = Movie.builder().id(1L).title("The Matrix").category(category).releaseYear(1999).stock(4).available(true).build();
+        MovieResponseDTO response = MovieResponseDTO.builder().id(1L).title("The Matrix").categoryId(3L).build();
+
+        when(movieRepository.findByTitleContainingIgnoreCase("Matrix")).thenReturn(List.of(movie));
+        when(movieMapper.toResponseDTO(movie)).thenReturn(response);
+
+        List<MovieResponseDTO> result = movieService.searchMoviesByTitle("  Matrix ");
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getTitle()).isEqualTo("The Matrix");
+    }
+
+    @Test
+    void shouldThrowExceptionWhenMovieSearchTextIsBlank() {
+        assertThatThrownBy(() -> movieService.searchMoviesByTitle("   "))
+                .isInstanceOf(CatalogException.class)
+                .hasMessage("El texto de búsqueda de películas es obligatorio");
+    }
+
+    @Test
+    void shouldGetAvailableMoviesSuccessfully() {
+        Category category = Category.builder().id(6L).name("Family").build();
+        Movie movie = Movie.builder().id(12L).title("Coraline").category(category).releaseYear(2009).stock(1).available(true).build();
+        MovieResponseDTO response = MovieResponseDTO.builder().id(12L).title("Coraline").categoryId(6L).available(true).build();
+
+        when(movieRepository.findByAvailableTrue()).thenReturn(List.of(movie));
+        when(movieMapper.toResponseDTO(movie)).thenReturn(response);
+
+        List<MovieResponseDTO> result = movieService.getAvailableMovies();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getAvailable()).isTrue();
+    }
+
+    @Test
+    void shouldUpdateMovieAndDeriveAvailabilityFromStockWhenNull() {
+        MovieRequestDTO request = new MovieRequestDTO();
+        request.setTitle("  Blade Runner  ");
+        request.setCategoryId(5L);
+        request.setReleaseYear(1982);
+        request.setStock(2);
+        request.setAvailable(null);
+
+        Category currentCategory = Category.builder().id(1L).name("Action").build();
+        Category newCategory = Category.builder().id(5L).name("Sci-Fi").build();
+
+        Movie movie = Movie.builder()
+                .id(21L)
+                .title("Old title")
+                .category(currentCategory)
+                .releaseYear(1980)
+                .stock(1)
+                .available(true)
+                .build();
+
+        Movie updatedMovie = Movie.builder()
+                .id(21L)
+                .title("Blade Runner")
+                .category(newCategory)
+                .releaseYear(1982)
+                .stock(2)
+                .available(true)
+                .build();
+
+        when(movieRepository.findById(21L)).thenReturn(Optional.of(movie));
+        when(categoryRepository.findById(5L)).thenReturn(Optional.of(newCategory));
+        when(movieRepository.save(movie)).thenReturn(updatedMovie);
+        when(movieMapper.toResponseDTO(updatedMovie)).thenReturn(MovieResponseDTO.builder()
+                .id(21L)
+                .title("Blade Runner")
+                .categoryId(5L)
+                .categoryName("Sci-Fi")
+                .releaseYear(1982)
+                .stock(2)
+                .available(true)
+                .build());
+
+        MovieResponseDTO result = movieService.updateMovie(21L, request);
+
+        assertThat(result.getTitle()).isEqualTo("Blade Runner");
+        assertThat(movie.getTitle()).isEqualTo("Blade Runner");
+        assertThat(movie.getAvailable()).isTrue();
+    }
+
+    @Test
+    void shouldForceMovieAsUnavailableWhenUpdatedWithZeroStock() {
+        MovieRequestDTO request = new MovieRequestDTO();
+        request.setTitle("Arrival");
+        request.setCategoryId(6L);
+        request.setReleaseYear(2016);
+        request.setStock(0);
+        request.setAvailable(true);
+
+        Category category = Category.builder().id(6L).name("Sci-Fi").build();
+
+        Movie movie = Movie.builder()
+                .id(22L)
+                .title("Arrival")
+                .category(category)
+                .releaseYear(2016)
+                .stock(3)
+                .available(true)
+                .build();
+
+        when(movieRepository.findById(22L)).thenReturn(Optional.of(movie));
+        when(categoryRepository.findById(6L)).thenReturn(Optional.of(category));
+        when(movieRepository.save(movie)).thenReturn(movie);
+        when(movieMapper.toResponseDTO(movie)).thenReturn(MovieResponseDTO.builder()
+                .id(22L)
+                .title("Arrival")
+                .categoryId(6L)
+                .categoryName("Sci-Fi")
+                .releaseYear(2016)
+                .stock(0)
+                .available(false)
+                .build());
+
+        MovieResponseDTO result = movieService.updateMovie(22L, request);
+
+        assertThat(result.getAvailable()).isFalse();
+        assertThat(movie.getAvailable()).isFalse();
+    }
+
+    @Test
+    void shouldDeleteMovieSuccessfully() {
+        Category category = Category.builder().id(1L).name("Action").build();
+        Movie movie = Movie.builder().id(5L).title("Rush Hour").category(category).releaseYear(1998).stock(2).available(true).build();
+
+        when(movieRepository.findById(5L)).thenReturn(Optional.of(movie));
+
+        movieService.deleteMovie(5L);
+
+        verify(movieRepository).delete(movie);
     }
 
     @Test
@@ -289,101 +489,5 @@ class MovieServiceImplTest {
 
         assertThat(movieCaptor.getValue().getStock()).isEqualTo(2);
         assertThat(movieCaptor.getValue().getAvailable()).isTrue();
-    }
-
-    @Test
-    void shouldUpdateMovieAndDeriveAvailabilityFromStockWhenNull() {
-        MovieRequestDTO request = new MovieRequestDTO();
-        request.setTitle("  Blade Runner  ");
-        request.setCategoryId(5L);
-        request.setReleaseYear(1982);
-        request.setStock(2);
-        request.setAvailable(null);
-
-        Category currentCategory = Category.builder().id(1L).name("Action").build();
-        Category newCategory = Category.builder().id(5L).name("Sci-Fi").build();
-
-        Movie movie = Movie.builder()
-                .id(21L)
-                .title("Old title")
-                .category(currentCategory)
-                .releaseYear(1980)
-                .stock(1)
-                .available(true)
-                .build();
-
-        Movie updatedMovie = Movie.builder()
-                .id(21L)
-                .title("Blade Runner")
-                .category(newCategory)
-                .releaseYear(1982)
-                .stock(2)
-                .available(true)
-                .build();
-
-        when(movieRepository.findById(21L)).thenReturn(Optional.of(movie));
-        when(categoryRepository.findById(5L)).thenReturn(Optional.of(newCategory));
-        when(movieRepository.save(movie)).thenReturn(updatedMovie);
-        when(movieMapper.toResponseDTO(updatedMovie)).thenReturn(MovieResponseDTO.builder()
-                .id(21L)
-                .title("Blade Runner")
-                .categoryId(5L)
-                .categoryName("Sci-Fi")
-                .releaseYear(1982)
-                .stock(2)
-                .available(true)
-                .build());
-
-        MovieResponseDTO result = movieService.updateMovie(21L, request);
-
-        assertThat(result.getTitle()).isEqualTo("Blade Runner");
-        assertThat(movie.getTitle()).isEqualTo("Blade Runner");
-        assertThat(movie.getAvailable()).isTrue();
-    }
-
-    @Test
-    void shouldForceMovieAsUnavailableWhenUpdatedWithZeroStock() {
-        MovieRequestDTO request = new MovieRequestDTO();
-        request.setTitle("Arrival");
-        request.setCategoryId(6L);
-        request.setReleaseYear(2016);
-        request.setStock(0);
-        request.setAvailable(true);
-
-        Category category = Category.builder().id(6L).name("Sci-Fi").build();
-
-        Movie movie = Movie.builder()
-                .id(22L)
-                .title("Arrival")
-                .category(category)
-                .releaseYear(2016)
-                .stock(3)
-                .available(true)
-                .build();
-
-        when(movieRepository.findById(22L)).thenReturn(Optional.of(movie));
-        when(categoryRepository.findById(6L)).thenReturn(Optional.of(category));
-        when(movieRepository.save(movie)).thenReturn(movie);
-        when(movieMapper.toResponseDTO(movie)).thenReturn(MovieResponseDTO.builder()
-                .id(22L)
-                .title("Arrival")
-                .categoryId(6L)
-                .categoryName("Sci-Fi")
-                .releaseYear(2016)
-                .stock(0)
-                .available(false)
-                .build());
-
-        MovieResponseDTO result = movieService.updateMovie(22L, request);
-
-        assertThat(result.getAvailable()).isFalse();
-        assertThat(movie.getAvailable()).isFalse();
-    }
-
-    @Test
-    void shouldThrowExceptionWhenMovieSearchTextIsBlank() {
-        assertThatThrownBy(() -> movieService.searchMoviesByTitle("   "))
-                .isInstanceOf(CatalogException.class)
-                .hasMessage("El texto de búsqueda de películas es obligatorio");
     }
 }

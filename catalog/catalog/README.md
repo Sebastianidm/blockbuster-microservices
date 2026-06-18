@@ -25,6 +25,10 @@ No autentica usuarios ni crea arriendos. Su foco es inventario.
 | Integracion entrante | `ms-transactions` |
 | UI OpenAPI | `/swagger-ui.html` |
 
+## Consumo en entorno integrado
+
+Para pruebas directas puede consumirse en `http://localhost:8081`. En entorno integrado, el acceso de cliente recomendado es por `api-gateway` usando `http://localhost:8080` y la misma ruta funcional.
+
 ## Responsabilidades
 
 - CRUD de categorias
@@ -82,8 +86,8 @@ Variables esperadas:
 
 ```properties
 DB_USERNAME=neondb_owner
-DB_PASSWORD=replace_with_real_password
-JWT_SECRET=replace_with_a_256_bit_secret
+DB_PASSWORD=replace_with_real_postgres_password
+JWT_SECRET=replace_with_shared_jwt_secret_256_bits_minimum
 JWT_EXPIRATION=86400000
 INTERNAL_API_KEY=replace_with_shared_internal_api_key
 ```
@@ -186,6 +190,13 @@ mvn spring-boot:run
 - seguridad interna por API key
 - controladores con MockMvc
 
+Cobertura JaCoCo validada para este servicio:
+
+- instruction coverage: `96.03%`
+- branch coverage: `84.29%`
+- line coverage: `96.28%`
+- method coverage: `93.18%`
+
 ## Formato de error
 
 ```json
@@ -200,4 +211,6 @@ mvn spring-boot:run
 ## Navegacion
 
 - [README principal](../../README.md)
+- [api-gateway](../../api-gateway/README.md)
+- [eureka-server](../../eureka-server/README.md)
 - [Coleccion Postman](../../docs/postman/README.md)

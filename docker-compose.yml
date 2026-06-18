@@ -1,0 +1,84 @@
+services:
+  eureka-server:
+    build:
+      context: ./eureka-server
+    ports:
+      - "8761:8761"
+    environment:
+      SERVER_PORT: 8761
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+    depends_on:
+      - eureka-server
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8080
+
+  notifications:
+    build:
+      context: ./notifications/notifications
+    depends_on:
+      - eureka-server
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8084
+      MONGO_PASSWORD: ${MONGO_PASSWORD}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+
+  users:
+    build:
+      context: ./users/users
+    depends_on:
+      - eureka-server
+      - notifications
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8082
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+
+  catalog:
+    build:
+      context: ./catalog/catalog
+    depends_on:
+      - eureka-server
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8081
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+
+  transactions:
+    build:
+      context: ./transactions/transactions
+    depends_on:
+      - eureka-server
+      - users
+      - catalog
+      - notifications
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8083
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}

@@ -1,0 +1,13 @@
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+notifications:
+  service:
+    url: http://notifications:8084
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka

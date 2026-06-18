@@ -17,6 +17,10 @@ Este microservicio no es duenio de usuarios ni de peliculas. Su responsabilidad 
 | Integraciones salientes | `ms-users`, `ms-catalog`, `ms-notifications` |
 | UI OpenAPI | `/swagger-ui.html` |
 
+## Consumo en entorno integrado
+
+Para pruebas directas puede consumirse en `http://localhost:8083`. En entorno integrado, el acceso recomendado es a traves de `api-gateway` usando `http://localhost:8080` y la misma ruta funcional.
+
 ## Responsabilidades
 
 - crear arriendos
@@ -45,7 +49,7 @@ Este microservicio no es duenio de usuarios ni de peliculas. Su responsabilidad 
 
 - `ROLE_USER`, `ROLE_EMPLOYEE` y `ROLE_ADMIN` pueden crear arriendos
 - `ROLE_USER` solo puede crear arriendos para su propia cuenta
-- `ROLE_USER`, `ROLE_EMPLOYEE` y `ROLE_ADMIN` pueden consultar el historial de arriendos por usuario (`GET /api/v1/rentals/user/{userId}`)
+- `ROLE_EMPLOYEE` y `ROLE_ADMIN` pueden consultar el historial de arriendos por usuario (`GET /api/v1/rentals/user/{userId}`)
 - `ROLE_EMPLOYEE` y `ROLE_ADMIN` pueden consultar todos los arriendos globales, devolver y eliminar arriendos
 
 La operacion canonica de devolucion es `PATCH`. Se conserva compatibilidad con `PUT` por razones de transicion del contrato.
@@ -58,12 +62,12 @@ Variables esperadas:
 
 ```properties
 DB_USERNAME=neondb_owner
-DB_PASSWORD=replace_with_real_password
+DB_PASSWORD=replace_with_real_postgres_password
 USERS_SERVICE_URL=http://localhost:8082
 CATALOG_SERVICE_URL=http://localhost:8081
 NOTIFICATIONS_SERVICE_URL=http://localhost:8084
 INTERNAL_API_KEY=replace_with_shared_internal_api_key
-JWT_SECRET=replace_with_shared_jwt_secret_256_bits_minimum_length_for_all_services
+JWT_SECRET=replace_with_shared_jwt_secret_256_bits_minimum
 JWT_EXPIRATION=86400000
 ```
 
@@ -192,6 +196,10 @@ mvn spring-boot:run
 - tolerancia a falla de `notifications`
 - controladores con MockMvc
 
+Cobertura JaCoCo validada para este servicio:
+
+- instruction coverage: `95.64%`
+
 ## Formato de error
 
 ```json
@@ -206,4 +214,6 @@ mvn spring-boot:run
 ## Navegacion
 
 - [README principal](../../README.md)
+- [api-gateway](../../api-gateway/README.md)
+- [eureka-server](../../eureka-server/README.md)
 - [Coleccion Postman](../../docs/postman/README.md)

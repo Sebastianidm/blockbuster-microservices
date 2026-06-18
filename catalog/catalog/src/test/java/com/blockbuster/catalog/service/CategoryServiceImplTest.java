@@ -12,11 +12,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,23 +37,23 @@ class CategoryServiceImplTest {
     void shouldCreateCategorySuccessfully() {
         CategoryRequestDTO request = new CategoryRequestDTO();
         request.setName("  Drama  ");
-        request.setDescription("  Películas dramáticas  ");
+        request.setDescription("  Peliculas dramaticas  ");
 
         Category category = Category.builder()
                 .name("  Drama  ")
-                .description("  Películas dramáticas  ")
+                .description("  Peliculas dramaticas  ")
                 .build();
 
         Category savedCategory = Category.builder()
                 .id(1L)
                 .name("Drama")
-                .description("Películas dramáticas")
+                .description("Peliculas dramaticas")
                 .build();
 
         CategoryResponseDTO response = CategoryResponseDTO.builder()
                 .id(1L)
                 .name("Drama")
-                .description("Películas dramáticas")
+                .description("Peliculas dramaticas")
                 .build();
 
         when(categoryRepository.existsByNameIgnoreCase("Drama")).thenReturn(false);
@@ -64,7 +66,7 @@ class CategoryServiceImplTest {
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("Drama");
         assertThat(category.getName()).isEqualTo("Drama");
-        assertThat(category.getDescription()).isEqualTo("Películas dramáticas");
+        assertThat(category.getDescription()).isEqualTo("Peliculas dramaticas");
     }
 
     @Test
@@ -80,6 +82,20 @@ class CategoryServiceImplTest {
     }
 
     @Test
+    void shouldGetAllCategoriesSuccessfully() {
+        Category category = Category.builder().id(1L).name("Drama").description("Desc").build();
+        CategoryResponseDTO response = CategoryResponseDTO.builder().id(1L).name("Drama").description("Desc").build();
+
+        when(categoryRepository.findAll()).thenReturn(List.of(category));
+        when(categoryMapper.toResponseDTO(category)).thenReturn(response);
+
+        List<CategoryResponseDTO> result = categoryService.getAllCategories();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getName()).isEqualTo("Drama");
+    }
+
+    @Test
     void shouldThrowExceptionWhenCategoryNotFound() {
         when(categoryRepository.findById(10L)).thenReturn(Optional.empty());
 
@@ -92,18 +108,18 @@ class CategoryServiceImplTest {
     void shouldUpdateCategoryWithNormalizedValues() {
         CategoryRequestDTO request = new CategoryRequestDTO();
         request.setName("  Thriller  ");
-        request.setDescription("  Películas de suspenso  ");
+        request.setDescription("  Peliculas de suspenso  ");
 
         Category category = Category.builder()
                 .id(4L)
                 .name("Drama")
-                .description("Películas dramáticas")
+                .description("Peliculas dramaticas")
                 .build();
 
         Category savedCategory = Category.builder()
                 .id(4L)
                 .name("Thriller")
-                .description("Películas de suspenso")
+                .description("Peliculas de suspenso")
                 .build();
 
         when(categoryRepository.findById(4L)).thenReturn(Optional.of(category));
@@ -112,26 +128,52 @@ class CategoryServiceImplTest {
         when(categoryMapper.toResponseDTO(savedCategory)).thenReturn(CategoryResponseDTO.builder()
                 .id(4L)
                 .name("Thriller")
-                .description("Películas de suspenso")
+                .description("Peliculas de suspenso")
                 .build());
 
         CategoryResponseDTO result = categoryService.updateCategory(4L, request);
 
         assertThat(result.getName()).isEqualTo("Thriller");
         assertThat(category.getName()).isEqualTo("Thriller");
-        assertThat(category.getDescription()).isEqualTo("Películas de suspenso");
+        assertThat(category.getDescription()).isEqualTo("Peliculas de suspenso");
+    }
+
+    @Test
+    void shouldNormalizeEmptyDescriptionToNullOnUpdate() {
+        CategoryRequestDTO request = new CategoryRequestDTO();
+        request.setName("Drama");
+        request.setDescription("   ");
+
+        Category category = Category.builder()
+                .id(9L)
+                .name("Drama")
+                .description("Descripcion previa")
+                .build();
+
+        when(categoryRepository.findById(9L)).thenReturn(Optional.of(category));
+        when(categoryRepository.save(category)).thenReturn(category);
+        when(categoryMapper.toResponseDTO(category)).thenReturn(CategoryResponseDTO.builder()
+                .id(9L)
+                .name("Drama")
+                .description(null)
+                .build());
+
+        CategoryResponseDTO result = categoryService.updateCategory(9L, request);
+
+        assertThat(result.getDescription()).isNull();
+        assertThat(category.getDescription()).isNull();
     }
 
     @Test
     void shouldThrowExceptionWhenUpdatingCategoryWithExistingName() {
         CategoryRequestDTO request = new CategoryRequestDTO();
         request.setName("Comedy");
-        request.setDescription("Películas de comedia");
+        request.setDescription("Peliculas de comedia");
 
         Category category = Category.builder()
                 .id(8L)
                 .name("Action")
-                .description("Películas de acción")
+                .description("Peliculas de accion")
                 .build();
 
         when(categoryRepository.findById(8L)).thenReturn(Optional.of(category));
@@ -140,5 +182,20 @@ class CategoryServiceImplTest {
         assertThatThrownBy(() -> categoryService.updateCategory(8L, request))
                 .isInstanceOf(CatalogException.class)
                 .hasMessage("Ya existe una categoría con el nombre: Comedy");
+    }
+
+    @Test
+    void shouldDeleteCategorySuccessfully() {
+        Category category = Category.builder()
+                .id(3L)
+                .name("Family")
+                .description("Desc")
+                .build();
+
+        when(categoryRepository.findById(3L)).thenReturn(Optional.of(category));
+
+        categoryService.deleteCategory(3L);
+
+        verify(categoryRepository).delete(category);
     }
 }

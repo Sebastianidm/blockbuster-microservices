@@ -46,14 +46,14 @@ class CategoryControllerTest {
         CategoryResponseDTO response = CategoryResponseDTO.builder()
                 .id(1L)
                 .name("Drama")
-                .description("Películas dramáticas")
+                .description("Peliculas dramaticas")
                 .build();
 
         when(categoryService.createCategory(any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/categories")
                         .contentType("application/json")
-                        .content("{\"name\":\"Drama\",\"description\":\"Películas dramáticas\"}"))
+                        .content("{\"name\":\"Drama\",\"description\":\"Peliculas dramaticas\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.name").value("Drama"));
@@ -63,18 +63,18 @@ class CategoryControllerTest {
     void shouldReturnValidationErrorWhenCategoryNameIsBlank() throws Exception {
         mockMvc.perform(post("/api/v1/categories")
                         .contentType("application/json")
-                        .content("{\"name\":\"\",\"description\":\"Películas dramáticas\"}"))
+                        .content("{\"name\":\"\",\"description\":\"Peliculas dramaticas\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("El nombre de la categoría es obligatorio"))
+                .andExpect(jsonPath("$.message").value("El nombre de la categoria es obligatorio"))
                 .andExpect(jsonPath("$.path").value("/api/v1/categories"));
     }
 
     @Test
     void shouldGetAllCategoriesSuccessfully() throws Exception {
         when(categoryService.getAllCategories()).thenReturn(List.of(
-                CategoryResponseDTO.builder().id(1L).name("Action").description("Películas de acción").build(),
-                CategoryResponseDTO.builder().id(2L).name("Comedy").description("Películas de comedia").build()
+                CategoryResponseDTO.builder().id(1L).name("Action").description("Peliculas de accion").build(),
+                CategoryResponseDTO.builder().id(2L).name("Comedy").description("Peliculas de comedia").build()
         ));
 
         mockMvc.perform(get("/api/v1/categories"))
@@ -86,12 +86,12 @@ class CategoryControllerTest {
     @Test
     void shouldReturnNotFoundWhenCategoryDoesNotExist() throws Exception {
         when(categoryService.getCategoryById(99L))
-                .thenThrow(new CatalogException("Categoría no encontrada con ID: 99", HttpStatus.NOT_FOUND));
+                .thenThrow(new CatalogException("Categoria no encontrada con ID: 99", HttpStatus.NOT_FOUND));
 
         mockMvc.perform(get("/api/v1/categories/99"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.message").value("Categoría no encontrada con ID: 99"));
+                .andExpect(jsonPath("$.message").value("Categoria no encontrada con ID: 99"));
     }
 
     @Test
@@ -107,14 +107,14 @@ class CategoryControllerTest {
         CategoryResponseDTO response = CategoryResponseDTO.builder()
                 .id(3L)
                 .name("Thriller")
-                .description("Películas de suspenso")
+                .description("Peliculas de suspenso")
                 .build();
 
         when(categoryService.updateCategory(eq(3L), any())).thenReturn(response);
 
         mockMvc.perform(put("/api/v1/categories/3")
                         .contentType("application/json")
-                        .content("{\"name\":\"Thriller\",\"description\":\"Películas de suspenso\"}"))
+                        .content("{\"name\":\"Thriller\",\"description\":\"Peliculas de suspenso\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Thriller"));
     }
